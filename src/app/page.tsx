@@ -82,8 +82,8 @@ export default function Home() {
           onSubmit={handleSubmit}
           className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-2xl space-y-5"
         >
-          <h1 className="text-2xl font-extrabold text-blue-600 text-center">
-            Apply Now
+          <h1 className="text-2xl font-extrabold text-center">
+            Job Application Form
           </h1>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -204,8 +204,13 @@ export default function Home() {
             placeholder="Application Letter / Cover Letter"
             value={formData.applicationLetter}
             onChange={handleChange}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = "auto"; 
+              target.style.height = `${target.scrollHeight}px`; 
+            }}
             required
-            className="w-full border border-gray-300 p-3 rounded-md resize-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 p-3 rounded-md resize-none overflow-hidden focus:ring-2 focus:ring-blue-500"
           />
 
           <div>
