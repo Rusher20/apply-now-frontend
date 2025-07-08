@@ -1,244 +1,256 @@
-"use client";
+"use client"
 
-import { useMutation } from "@apollo/client";
-import { SUBMIT_APPLICATION } from "@/graphql/mutations/submitApplication";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
+import { Button } from "../../components/ui/button"
+import { Progress } from "../../components/ui/progress"
+import { ConfidentialityStep } from "../../components/form-steps/confidentiality-step"
+import { BasicInfoStep } from "../../components/form-steps/basic-info-step"
+import { ApplicationSourceStep } from "../../components/form-steps/application-source-step"
+import { PositionStep } from "../../components/form-steps/position-step"
+import { RoleSpecificStep } from "../../components/form-steps/role-specific-step"
+import { ReviewStep } from "../../components/form-steps/review-step"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
-export default function Home() {
-  const router = useRouter();
-  const [formData, setFormData] = useState({
+export interface FormData {
+  confidentialityAgreed: boolean
+  name: string
+  age: string
+  gender: string
+  email: string
+  contactNumber: string
+  address: string
+  city: string
+  province: string
+  region: string
+  education: string
+  applicationSource: string
+  referralName: string
+  hasStableInternet: string
+  internetProvider: string
+  position: string
+  roleSpecific: Record<string, any>
+  resume: File | null
+  applicationLetter: string
+}
+
+const STEPS = [
+  "Confidentiality Agreement",
+  "Basic Information",
+  "Application Source",
+  "Position Selection",
+  "Role-Specific Questions",
+  "Review & Submit",
+]
+
+export default function JobApplicationForm() {
+  const router = useRouter()
+  const [currentStep, setCurrentStep] = useState(0)
+  const [loading, setLoading] = useState(false)
+
+  const [formData, setFormData] = useState<FormData>({
+    confidentialityAgreed: false,
     name: "",
+    age: "",
     gender: "",
     email: "",
     contactNumber: "",
     address: "",
-    position: "",
     city: "",
     province: "",
     region: "",
-    expectedSalary: "",
+    education: "",
+    applicationSource: "",
+    referralName: "",
+    hasStableInternet: "",
+    internetProvider: "",
+    position: "",
+    roleSpecific: {},
+    resume: null,
     applicationLetter: "",
-    resume: null as File | null,
-  });
+  })
 
-  const [submitApplication, { loading }] = useMutation(SUBMIT_APPLICATION);
+  const updateFormData = (updates: Partial<FormData>) => {
+    setFormData((prev) => ({ ...prev, ...updates }))
+  }
 
-  const handleChange = (e: any) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  const updateRoleSpecific = (updates: Partial<FormData["roleSpecific"]>) => {
+    setFormData((prev) => ({
+      ...prev,
+      roleSpecific: { ...prev.roleSpecific, ...updates },
+    }))
+  }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFormData((prev) => ({ ...prev, resume: e.target.files![0] }));
+  const nextStep = () => {
+    if (currentStep < STEPS.length - 1) setCurrentStep(currentStep + 1)
+  }
+
+  const prevStep = () => {
+    if (currentStep > 0) setCurrentStep(currentStep - 1)
+  }
+
+  const handleSubmit = async () => {
+    if (!formData.resume) {
+      alert("Resume is required")
+      return
     }
-  };
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
+    setLoading(true)
     try {
-      await submitApplication({
+      const operations = JSON.stringify({
+        query: `
+          mutation SubmitApplication($input: CreateApplicationInput!, $file: Upload!) {
+            submitApplication(input: $input, file: $file)
+          }
+        `,
         variables: {
           input: {
             name: formData.name,
+            age: formData.age,
             gender: formData.gender,
             email: formData.email,
             contactNumber: formData.contactNumber,
             address: formData.address,
-            position: formData.position,
             city: formData.city,
             province: formData.province,
-            region: formData.region,
-            expectedSalary: formData.expectedSalary,
+            education: formData.education,
+            confidentialityAgreed: formData.confidentialityAgreed,
+            applicationSource: formData.applicationSource,
+            referralName: formData.referralName || null,
+            hasStableInternet: formData.hasStableInternet,
+            internetProvider: formData.internetProvider || null,
+            position: formData.position,
+            roleSpecific: formData.roleSpecific,
             applicationLetter: formData.applicationLetter,
           },
-          file: formData.resume,
+          file: null,
         },
-      });
+      })
 
-      // ✅ Redirect to confirmation page after successful submit
-      router.push("/application/confirmation");
+      const map = JSON.stringify({
+        "1": ["variables.file"],
+      })
+
+      const body = new FormData()
+      body.append("operations", operations)
+      body.append("map", map)
+      body.append("1", formData.resume)
+
+      const response = await fetch("http://localhost:3000/graphql", {
+        method: "POST",
+        body,
+      })
+
+      const result = await response.json()
+      if (result.errors) {
+        console.error("GraphQL Error:", result.errors)
+        alert("Submission failed.")
+      } else {
+        router.push("/application/confirmation")
+      }
     } catch (error) {
-      console.error("Error submitting application:", error);
-      alert("Error submitting application. Please try again.");
+      console.error("Submission Error:", error)
+      alert("An error occurred while submitting.")
+    } finally {
+      setLoading(false)
     }
-  };
+  }
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 0:
+        return <ConfidentialityStep formData={formData} updateFormData={updateFormData} />
+      case 1:
+        return <BasicInfoStep formData={formData} updateFormData={updateFormData} />
+      case 2:
+        return <ApplicationSourceStep formData={formData} updateFormData={updateFormData} />
+      case 3:
+        return <PositionStep formData={formData} updateFormData={updateFormData} />
+      case 4:
+        return (
+          <RoleSpecificStep
+            formData={formData}
+            updateFormData={updateFormData}
+            updateRoleSpecific={updateRoleSpecific}
+          />
+        )
+      case 5:
+        return <ReviewStep formData={formData} updateFormData={updateFormData} />
+      default:
+        return null
+    }
+  }
+
+  const canProceed = () => {
+    switch (currentStep) {
+      case 0:
+        return formData.confidentialityAgreed
+      case 1:
+        return formData.name && formData.email && formData.contactNumber && formData.address
+      case 2:
+        return formData.applicationSource && formData.hasStableInternet
+      case 3:
+        return formData.position
+      case 4:
+        return true
+      case 5:
+        return formData.resume && formData.applicationLetter
+      default:
+        return false
+    }
+  }
+
+  const progress = ((currentStep + 1) / STEPS.length) * 100
 
   return (
-    <div
-      className="flex items-center justify-center min-h-screen bg-gradient-to-t from-sky-500 to-indigo-500 p-4 sm:p-8"
-      style={{ backgroundAttachment: "fixed" }}
-    >
-      <div className="relative w-full max-w-2xl bg-white shadow-2xl rounded-2xl p-6 sm:p-5">
-        <div className="flex flex-col items-center mb-6">
-          <img
-            src="/PPSI.png"
-            alt="PPSI Logo"
-            className="h-20 object-contain"
-          />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <img src="/PPSI.png" alt="PPSI Logo" className="h-20 mx-auto mb-4" />
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Job Application Form</h1>
+          <p className="text-gray-600">
+            Step {currentStep + 1} of {STEPS.length}: {STEPS[currentStep]}
+          </p>
         </div>
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-2xl space-y-5"
-        >
-          <h1 className="text-2xl font-extrabold text-center">
-            Job Application Form
-          </h1>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <input
-              name="name"
-              placeholder="Full Name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-            />
+        <div className="mb-8">
+          <Progress value={progress} className="h-2" />
+        </div>
 
-            <input
-              name="email"
-              type="email"
-              placeholder="Email Address"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-            />
+        <Card className="shadow-xl">
+          <CardHeader>
+            <CardTitle className="text-xl text-center">{STEPS[currentStep]}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {renderStep()}
 
-            <input
-              name="contactNumber"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]+"
-              placeholder="Contact Number"
-              value={formData.contactNumber}
-              onChange={handleChange}
-              required
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-            />
+            <div className="flex justify-between pt-6 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={prevStep}
+                disabled={currentStep === 0}
+                className="flex items-center gap-2 bg-transparent"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
 
-            <input
-              name="position"
-              placeholder="Desired Position"
-              value={formData.position}
-              onChange={handleChange}
-              required
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-            />
-
-            <input
-              name="city"
-              placeholder="Current City"
-              value={formData.city}
-              onChange={handleChange}
-              required
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-            />
-
-            <input
-              name="province"
-              placeholder="Current Province"
-              value={formData.province}
-              onChange={handleChange}
-              required
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-            />
-
-            <input
-              name="region"
-              placeholder="Current Region"
-              value={formData.region}
-              onChange={handleChange}
-              required
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-            />
-
-            <input
-              name="expectedSalary"
-              placeholder="Expected Monthly Salary"
-              value={formData.expectedSalary}
-              onChange={handleChange}
-              required
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-            />
-          </div>
-
-          <input
-            name="address"
-            placeholder="Complete Home Address"
-            value={formData.address}
-            onChange={handleChange}
-            required
-            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-          />
-
-          <div className="flex gap-6 items-center">
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="gender"
-                value="Male"
-                checked={formData.gender === "Male"}
-                onChange={handleChange}
-                required
-                className="accent-blue-500"
-              />
-              Male
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="gender"
-                value="Female"
-                checked={formData.gender === "Female"}
-                onChange={handleChange}
-                className="accent-blue-500"
-              />
-              Female
-            </label>
-          </div>
-
-          <textarea
-            name="applicationLetter"
-            placeholder="Application Letter / Cover Letter"
-            value={formData.applicationLetter}
-            onChange={handleChange}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = "auto"; 
-              target.style.height = `${target.scrollHeight}px`; 
-            }}
-            required
-            className="w-full border border-gray-300 p-3 rounded-md resize-none overflow-hidden focus:ring-2 focus:ring-blue-500"
-          />
-
-          <div>
-            <label className="block font-medium text-gray-700 mb-1">
-              Upload Resume
-            </label>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx"
-              onChange={handleFileChange}
-              className="block w-full border border-gray-300 rounded-md p-2 file:mr-4 file:py-2 file:px-4 file:border-0 file:rounded-md file:bg-blue-500 file:text-white file:font-semibold hover:file:bg-blue-600 transition"
-            />
-            {formData.resume && (
-              <p className="text-sm mt-1 text-gray-700">
-                Attached: {formData.resume.name}
-              </p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white py-3 rounded-md font-bold transition"
-          >
-            {loading ? "Submitting..." : "Submit Application"}
-          </button>
-        </form>
+              {currentStep === STEPS.length - 1 ? (
+                <Button onClick={handleSubmit} disabled={!canProceed() || loading} className="flex items-center gap-2">
+                  {loading ? "Submitting..." : "Submit Application"}
+                </Button>
+              ) : (
+                <Button onClick={nextStep} disabled={!canProceed()} className="flex items-center gap-2">
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
-  );
+  )
 }
