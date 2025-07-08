@@ -4,19 +4,25 @@ export const GET_JOB_APPLICATIONS = gql`
   query GetJobApplications {
     jobApplications {
       id
+      createdAt
+      confidentialityAgreed
       name
-      email
+      age
       gender
+      email
       contactNumber
       address
-      position
       city
       province
-      region
-      expectedSalary
-      applicationLetter
+      education
+      applicationSource
+      referralName
+      hasStableInternet
+      internetProvider
+      position
+      roleSpecific
       resumeUrl
-      createdAt
+      applicationLetter
       status
     }
   }

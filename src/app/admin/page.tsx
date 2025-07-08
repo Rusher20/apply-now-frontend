@@ -1,286 +1,349 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useQuery, useMutation } from "@apollo/client";
-import LogoutButton from "../../../components/LogoutButton";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "../../../components/ui/card";
-import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
-import { Badge } from "../../../components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../../../components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../../../components/ui/table";
-import { Download, Eye } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../../components/ui/select";
-import { toast } from "react-hot-toast";
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useQuery } from "@apollo/client"
+import { GET_POSITION } from "@/graphql/query/get-position"
+import { GET_JOB_APPLICATIONS } from "@/graphql/query/getApplication"
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card"
+import { Button } from "../../../components/ui/button"
+import { Users, Briefcase } from "lucide-react"
+import Link from "next/link"
+import LogoutButton from "../../../components/LogoutButton"
 
-import { GET_JOB_APPLICATIONS } from "@/graphql/query/getApplication";
-import { DELETE_JOB_APPLICATION } from "@/graphql/mutations/deleteJobApplication";
-import { UPDATE_JOB_APPLICATION_STATUS } from "@/graphql/mutations/updateStatus";
-
-export default function AdminApplicationsPage() {
-  const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [positionFilter, setPositionFilter] = useState("all");
-  const [selectedApplication, setSelectedApplication] = useState<any>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  const { data, loading, error } = useQuery(GET_JOB_APPLICATIONS);
-  const [deleteApplication] = useMutation(DELETE_JOB_APPLICATION, {
-    refetchQueries: [{ query: GET_JOB_APPLICATIONS }],
-  });
-  const [updateStatus] = useMutation(UPDATE_JOB_APPLICATION_STATUS, {
-    refetchQueries: [{ query: GET_JOB_APPLICATIONS }],
-  });
-
-  const applications = data?.jobApplications || [];
-  const uniquePositions = [...new Set(applications.map((app: any) => app.position))];
+export default function AdminDashboard() {
+  const router = useRouter()
+  const { data: appsData, loading: appsLoading } = useQuery(GET_JOB_APPLICATIONS)
+  const { data: positionsData, loading: positionsLoading } = useQuery(GET_POSITION)
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) router.push("/login");
-  }, [router]);
+    const token = localStorage.getItem("token")
+    if (!token) router.push("/login")
+  }, [router])
 
-  const filteredApplications = applications.filter((app: any) => {
-    const matchSearch =
-      app.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      app.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      app.position.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = statusFilter === "all" || app.status === statusFilter;
-    const matchPosition = positionFilter === "all" || app.position === positionFilter;
-    return matchSearch && matchStatus && matchPosition;
-  });
+  const jobApplications = appsData?.jobApplications || []
+  const allPositions = positionsData?.positions || []
+  const activePositions = allPositions.filter((pos: any) => pos.isActive)
+  const pendingReviewCount = jobApplications.filter((app: any) => app.status === "pending").length
+  const reviewedCount = jobApplications.filter((app: any) => app.status === "reviewed").length
+  const hiredCount = jobApplications.filter((app: any) => app.status === "hired").length
+  const interviewedCount = jobApplications.filter((app: any) => app.status === "interviewed").length
 
-  const totalPages = Math.ceil(filteredApplications.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedApplications = filteredApplications.slice(startIndex, endIndex);
+  // Create recent activity from actual data
+  const recentActivity = [
+    ...jobApplications.slice(0, 2).map((app: any, index: number) => ({
+      id: `app-${index}`,
+      action: "New application received",
+      position: app.position || "Unknown Position",
+      time: new Date(app.createdAt).toLocaleDateString(),
+      type: "application",
+    })),
+    ...activePositions.slice(0, 2).map((pos: any, index: number) => ({
+      id: `pos-${index}`,
+      action: "Active position",
+      position: pos.title || "Unknown Position",
+      time: new Date(pos.createdAt).toLocaleDateString(),
+      type: "position",
+    })),
+  ].slice(0, 4)
 
-  const handleDownloadResume = (url: string) => {
-    window.open(url, "_blank");
-  };
-
-  const handleDelete = async (id: number) => {
-    if (confirm("Are you sure you want to delete this application?")) {
-      const toastId = toast.loading("Deleting application...");
-      try {
-        await deleteApplication({ variables: { id } });
-        toast.success("Application deleted successfully.", { id: toastId });
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to delete application.", { id: toastId });
-      }
-    }
-  };
-
-  const handleStatusUpdate = async (id: number, status: string) => {
-    const toastId = toast.loading("Updating status...");
-    try {
-      await updateStatus({ variables: { id, status } });
-      toast.success("Status updated.", { id: toastId });
-    } catch (err) {
-      console.error("Failed to update status", err);
-      toast.error("Status update failed.", { id: toastId });
-    }
-  };
-
-  if (loading)
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
-  if (error) return <p className="p-4 text-red-500">Error loading applications.</p>;
-
-  return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <img src="/PPSI.png" alt="PPSI Logo" className="h-20 object-contain" />
-          <p className="text-muted-foreground">
-            HR Manage and review job applications
-          </p>
+  if (appsLoading || positionsLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="flex items-center gap-2">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-lg text-gray-600">Loading dashboard...</span>
         </div>
-        <div className="flex items-center gap-4">
-          <Badge className="text-lg px-3 py-1 bg-[#273472] text-white">
-            {filteredApplications.length} Applications
-          </Badge>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="container mx-auto p-6 space-y-8">
+        {/* Enhanced Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 p-8 text-white shadow-xl">
+          <div className="absolute inset-0 bg-black/10"></div>
+          <div className="relative flex justify-between items-center">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <Users className="h-6 w-6" />
+                </div>
+                <div className="px-3 py-1 bg-white/20 text-white border border-white/30 rounded-full text-sm">
+                  Admin Dashboard
+                </div>
+              </div>
+              <h1 className="text-4xl font-bold">Welcome back!</h1>
+              <p className="text-blue-100 text-lg">Manage your recruitment process efficiently</p>
+            </div>
+            <div className="hidden md:block">
+              <LogoutButton />
+            </div>
+          </div>
+          {/* Decorative elements */}
+          <div className="absolute -top-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
+          <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Applications</p>
+                  <p className="text-3xl font-bold text-gray-900">{jobApplications.length}</p>
+                  <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                    <Users className="h-3 w-3" />
+                    All submissions
+                  </p>
+                </div>
+                <div className="p-3 bg-blue-100 rounded-full">
+                  <Users className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Pending Review</p>
+                  <p className="text-3xl font-bold text-gray-900">{pendingReviewCount}</p>
+                  <p className="text-xs text-orange-600 flex items-center gap-1 mt-1">
+                    <Users className="h-3 w-3" />
+                    Needs attention
+                  </p>
+                </div>
+                <div className="p-3 bg-orange-100 rounded-full">
+                  <Users className="h-6 w-6 text-orange-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Active Positions</p>
+                  <p className="text-3xl font-bold text-gray-900">{activePositions.length}</p>
+                  <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+                    <Briefcase className="h-3 w-3" />
+                    Currently hiring
+                  </p>
+                </div>
+                <div className="p-3 bg-green-100 rounded-full">
+                  <Briefcase className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Hired</p>
+                  <p className="text-3xl font-bold text-gray-900">{hiredCount}</p>
+                  <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                    <Users className="h-3 w-3" />
+                    Great progress!
+                  </p>
+                </div>
+                <div className="p-3 bg-purple-100 rounded-full">
+                  <Users className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Action Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-50 to-blue-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 group">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-xl">
+                <div className="p-3 bg-blue-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  <Users className="h-7 w-7 text-white" />
+                </div>
+                <div>
+                  <span className="text-gray-900">Job Applications</span>
+                  <div className="ml-2 inline-block px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-full">
+                    {pendingReviewCount} pending
+                  </div>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-gray-700 leading-relaxed">
+                Review and manage job applications from candidates. Track application status, schedule interviews, and
+                make hiring decisions.
+              </p>
+              <div className="flex items-center gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span>{reviewedCount} Reviewed</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                  <span>{pendingReviewCount} Pending</span>
+                </div>
+              </div>
+              <Link href="/admin/applications" className="block">
+                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 group">
+                  <span>View Applications</span>
+                  <Users className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-xl bg-gradient-to-br from-green-50 to-green-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 group">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-xl">
+                <div className="p-3 bg-green-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  <Briefcase className="h-7 w-7 text-white" />
+                </div>
+                <div>
+                  <span className="text-gray-900">Position Management</span>
+                  <div className="ml-2 inline-block px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-full">
+                    {activePositions.length} active
+                  </div>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-gray-700 leading-relaxed">
+                Create and manage job positions with custom questions. Define role requirements, set up application
+                forms, and control position visibility.
+              </p>
+              <div className="flex items-center gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span>{activePositions.length} Active</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                  <span>{allPositions.length - activePositions.length} Inactive</span>
+                </div>
+              </div>
+              <Link href="/admin/positions" className="block">
+                <Button className="w-full bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 group">
+                  <span>Manage Positions</span>
+                  <Briefcase className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recent Activity */}
+        <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Users className="h-5 w-5 text-gray-700" />
+              Recent Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentActivity.length > 0 ? (
+                recentActivity.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="flex items-center gap-4 p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
+                  >
+                    <div
+                      className={`p-2 rounded-full ${
+                        activity.type === "application"
+                          ? "bg-blue-100"
+                          : activity.type === "position"
+                            ? "bg-green-100"
+                            : "bg-orange-100"
+                      }`}
+                    >
+                      {activity.type === "application" ? (
+                        <Users className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <Briefcase className="h-4 w-4 text-green-600" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{activity.action}</p>
+                      <p className="text-sm text-gray-600">{activity.position}</p>
+                    </div>
+                    <div className="text-sm text-gray-500">{activity.time}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                  <p>No recent activity</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Application Status Breakdown */}
+        <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Users className="h-5 w-5 text-gray-700" />
+              Application Status Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors duration-200">
+                <div className="p-2 rounded-full bg-orange-100">
+                  <Users className="h-4 w-4 text-orange-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">Pending</p>
+                  <p className="text-2xl font-bold text-orange-600">{pendingReviewCount}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors duration-200">
+                <div className="p-2 rounded-full bg-blue-100">
+                  <Users className="h-4 w-4 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">Reviewed</p>
+                  <p className="text-2xl font-bold text-blue-600">{reviewedCount}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors duration-200">
+                <div className="p-2 rounded-full bg-purple-100">
+                  <Users className="h-4 w-4 text-purple-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">Interviewed</p>
+                  <p className="text-2xl font-bold text-purple-600">{interviewedCount}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-green-50 hover:bg-green-100 transition-colors duration-200">
+                <div className="p-2 rounded-full bg-green-100">
+                  <Users className="h-4 w-4 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">Hired</p>
+                  <p className="text-2xl font-bold text-green-600">{hiredCount}</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <div className="md:hidden flex justify-center">
           <LogoutButton />
         </div>
       </div>
-
-      <Card className="border shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <Input
-              placeholder="Search by name, email, or position..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="pl-10 flex-1"
-            />
-            <Select value={statusFilter} onValueChange={(v) => {
-              setStatusFilter(v);
-              setCurrentPage(1);
-            }}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="reviewed">Reviewed</SelectItem>
-                <SelectItem value="interviewed">Interviewed</SelectItem>
-                <SelectItem value="hired">Hired</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={positionFilter} onValueChange={(v) => {
-              setPositionFilter(v);
-              setCurrentPage(1);
-            }}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Filter by position" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Positions</SelectItem>
-                {(uniquePositions as string[]).map((position) => (
-                  <SelectItem key={position} value={position}>
-                    {position}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-[#007DA3]">Applications Overview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="text-[#273472]">
-                <TableHead>Applicant</TableHead>
-                <TableHead>Position</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Expected Salary</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedApplications.map((app: any) => (
-                <TableRow key={app.id}>
-                  <TableCell>
-                    <div className="font-medium">{app.name}</div>
-                    <div className="text-sm text-muted-foreground">{app.email}</div>
-                  </TableCell>
-                  <TableCell>{app.position}</TableCell>
-                  <TableCell>{app.city}, {app.province}</TableCell>
-                  <TableCell>₱{parseInt(app.expectedSalary).toLocaleString()}</TableCell>
-                  <TableCell>{new Date(app.createdAt).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    <Select value={app.status} onValueChange={(status) => handleStatusUpdate(app.id, status)}>
-                      <SelectTrigger className="w-36 border-[#007DA3] focus:ring-[#007DA3]">
-                        <SelectValue placeholder="Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="reviewed">Reviewed</SelectItem>
-                        <SelectItem value="hired">Hired</SelectItem>
-                        <SelectItem value="interviewed">Interviewed</SelectItem>
-                        <SelectItem value="rejected" className="text-red-500">Rejected</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button onClick={() => setSelectedApplication(app)}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-3xl">
-                          <DialogHeader>
-                            <DialogTitle>Application Details - {app.name}</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <p><strong>Email:</strong> {app.email}</p>
-                            <p><strong>Contact:</strong> {app.contactNumber}</p>
-                            <p><strong>Address:</strong> {app.address}, {app.city}, {app.province}, {app.region}</p>
-                            <p><strong>Gender:</strong> {app.gender}</p>
-                            <p><strong>Application Letter:</strong><br />{app.applicationLetter}</p>
-                            {app.resumeUrl && (
-                              <Button
-                                onClick={() => handleDownloadResume(app.resumeUrl)}
-                                className="flex gap-2 bg-[#273472] text-white hover:bg-[#1d265b]"
-                              >
-                                <Download className="h-4 w-4" />
-                                View Resume
-                              </Button>
-                            )}
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                      <Button variant="destructive" onClick={() => handleDelete(app.id)}>
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Pagination */}
-      <div className="flex justify-center items-center gap-4 mt-4">
-        <Button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>Previous</Button>
-        <span className="text-muted-foreground">Page {currentPage} of {totalPages}</span>
-        <Button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>Next</Button>
-      </div>
-
-      {filteredApplications.length === 0 && (
-        <Card>
-          <CardContent className="text-center py-8">
-            <p className="text-muted-foreground">No applications found matching your criteria.</p>
-          </CardContent>
-        </Card>
-      )}
     </div>
-  );
+  )
 }
