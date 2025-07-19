@@ -6,7 +6,6 @@ export const UPDATE_POSITION = gql`
       id
       title
       description
-      icon
       isActive
       updatedAt
       questions {

@@ -9,13 +9,16 @@ import { Input } from "../../../../components/ui/input"
 import { Badge } from "../../../../components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../../../components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../../components/ui/table"
-import { Download, Eye, Filter, Search, X } from "lucide-react"
+import { Download, Eye, Filter, Search, X, FileDown, Trash2, CheckSquare, FileText } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { ScrollArea } from "../../../../components/ui/scroll-area"
+import { Checkbox } from "../../../../components/ui/checkbox"
 import { toast } from "react-hot-toast"
 import { GET_JOB_APPLICATIONS } from "@/graphql/query/getApplication"
 import { DELETE_JOB_APPLICATION } from "@/graphql/mutations/deleteJobApplication"
 import { UPDATE_JOB_APPLICATION_STATUS } from "@/graphql/mutations/updateStatus"
+import { GET_POSITION } from "@/graphql/query/get-position"
+import Navbar from "../../../../components/navbar"
 
 export default function AdminApplicationsPage() {
   const router = useRouter()
@@ -25,6 +28,10 @@ export default function AdminApplicationsPage() {
   const [selectedApplication, setSelectedApplication] = useState<any>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+
+  // Bulk selection state
+  const [selectedApplications, setSelectedApplications] = useState<Set<number>>(new Set())
+  const [selectAll, setSelectAll] = useState(false)
 
   // Advanced filters
   const [educationFilter, setEducationFilter] = useState("all")
@@ -40,6 +47,7 @@ export default function AdminApplicationsPage() {
   const [updateStatus] = useMutation(UPDATE_JOB_APPLICATION_STATUS, {
     refetchQueries: [{ query: GET_JOB_APPLICATIONS }],
   })
+  const { data: positionData } = useQuery(GET_POSITION)
 
   const applications = data?.jobApplications || []
   const uniquePositions = [...new Set(applications.map((app: any) => app.position).filter(Boolean))] as string[]
@@ -51,27 +59,23 @@ export default function AdminApplicationsPage() {
     if (!token) router.push("/login")
   }, [router])
 
-  // Simple filtering logic
   const filteredApplications = applications.filter((app: any) => {
     const matchSearch =
       app.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.position?.toLowerCase().includes(searchTerm.toLowerCase())
-
     const matchStatus = statusFilter === "all" || app.status === statusFilter
     const matchPosition = positionFilter === "all" || app.position === positionFilter
     const matchEducation = educationFilter === "all" || app.education === educationFilter
     const matchSource = sourceFilter === "all" || app.applicationSource === sourceFilter
 
-    // Experience filter (for role-specific data)
     let matchExperience = true
-    if (experienceFilter !== "all" && app.roleSpecific) {
-      const experience =
-        app.roleSpecific.bpoExperience ||
-        app.roleSpecific.brokerExperience ||
-        app.roleSpecific.creditExperience ||
-        app.roleSpecific.fpaExperience
-      matchExperience = experience === experienceFilter
+    if (experienceFilter !== "all" && app.roleSpecific && positionData?.positions) {
+      const position = positionData.positions.find((pos: any) => pos.value === app.position)
+      const experienceQuestion = position?.questions.find((q: any) => q.label.toLowerCase().includes("experience"))
+      const answerObj = experienceQuestion && app.roleSpecific[experienceQuestion.id]
+      const answerValue = answerObj?.answer?.value || answerObj?.answer
+      matchExperience = answerValue === experienceFilter
     }
 
     return matchSearch && matchStatus && matchPosition && matchEducation && matchSource && matchExperience
@@ -81,6 +85,264 @@ export default function AdminApplicationsPage() {
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedApplications = filteredApplications.slice(startIndex, startIndex + itemsPerPage)
 
+  // Helper function to generate CSV data for applications
+  const generateCSVData = (applicationsToExport: any[]) => {
+    // Collect all unique role-specific questions across all applications
+    const allRoleSpecificQuestions = new Set<string>()
+    applicationsToExport.forEach((app: any) => {
+      if (app.roleSpecific) {
+        Object.values(app.roleSpecific).forEach((item: any) => {
+          if (item?.question) {
+            allRoleSpecificQuestions.add(item.question)
+          }
+        })
+      }
+    })
+
+    const roleSpecificQuestionsArray = Array.from(allRoleSpecificQuestions).sort()
+
+    const headers = [
+      "Name",
+      "Email",
+      "Contact Number",
+      "Age",
+      "Gender",
+      "Position",
+      "Location",
+      "Address",
+      "Education",
+      "Application Source",
+      "Expected Salary",
+      "Status",
+      "Submitted Date",
+      ...roleSpecificQuestionsArray,
+    ]
+
+    const csvData = applicationsToExport.map((app: any) => {
+      const expectedSalary = (() => {
+        if (!app.roleSpecific) return "N/A"
+        const entry = Object.values(app.roleSpecific).find((item: any) =>
+          (item as any)?.question?.toLowerCase().includes("expected compensation"),
+        ) as { answer?: any }
+        if (!entry) return "N/A"
+        let raw = entry.answer
+        if (typeof raw === "object" && raw !== null && "value" in raw) {
+          raw = raw.value
+        }
+        const num = Number(raw)
+        return !isNaN(num)
+          ? num.toLocaleString("en-PH", {
+              minimumFractionDigits: 0,
+            })
+          : "N/A"
+      })()
+
+      // Create a map of role-specific answers
+      const roleSpecificAnswers: { [key: string]: string } = {}
+      if (app.roleSpecific) {
+        Object.values(app.roleSpecific).forEach((item: any) => {
+          if (item?.question) {
+            const question = item.question
+            const answer = item.answer
+            let displayValue = ""
+            if (Array.isArray(answer)) {
+              displayValue = answer
+                .map((opt: any) => (opt.input ? `${opt.value} (${opt.input})` : opt.value))
+                .join(", ")
+            } else if (typeof answer === "object" && answer !== null && "value" in answer) {
+              displayValue = answer.input ? `${answer.value} (${answer.input})` : answer.value
+            } else {
+              displayValue = String(answer ?? "")
+            }
+            roleSpecificAnswers[question] = displayValue
+          }
+        })
+      }
+
+      const baseData = [
+        app.name || "",
+        app.email || "",
+        app.contactNumber || "",
+        app.age || "",
+        app.gender || "",
+        app.position?.replace("-", " ").replace(/\b\w/g, (l: string) => l.toUpperCase()) || "",
+        `${app.city || ""}, ${app.province || ""}`,
+        app.address || "",
+        app.education?.replace("-", " ").replace(/\b\w/g, (l: string) => l.toUpperCase()) || "",
+        app.applicationSource?.replace("-", " ").replace(/\b\w/g, (l: string) => l.toUpperCase()) || "",
+        expectedSalary,
+        app.status || "",
+        new Date(app.createdAt).toLocaleDateString(),
+      ]
+
+      // Add role-specific answers in the same order as headers
+      const roleSpecificData = roleSpecificQuestionsArray.map((question) => roleSpecificAnswers[question] || "")
+
+      return [...baseData, ...roleSpecificData]
+    })
+
+    return { headers, csvData, roleSpecificQuestionsArray }
+  }
+
+  // Individual CSV Export Function
+  const exportIndividualToCSV = (application: any) => {
+    const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData([application])
+
+    const csvContent = [headers, ...csvData]
+      .map((row) => row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","))
+      .join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute(
+      "download",
+      `${application.name.replace(/[^a-zA-Z0-9]/g, "_")}_application_${new Date().toISOString().split("T")[0]}.csv`,
+    )
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    toast.success(
+      `Application exported to CSV successfully! (${roleSpecificQuestionsArray.length} role-specific questions included)`,
+    )
+  }
+
+  // Bulk CSV Export Function
+  const exportToCSV = () => {
+    const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData(filteredApplications)
+
+    const csvContent = [headers, ...csvData]
+      .map((row) => row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","))
+      .join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute("download", `job_applications_${new Date().toISOString().split("T")[0]}.csv`)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    toast.success(
+      `Applications exported to CSV successfully! (${roleSpecificQuestionsArray.length} role-specific questions included)`,
+    )
+  }
+
+  // Bulk Selection Functions
+  const handleSelectAll = (checked: boolean) => {
+    setSelectAll(checked)
+    if (checked) {
+      const allIds = new Set<number>(paginatedApplications.map((app: any) => app.id as number))
+      setSelectedApplications(allIds)
+    } else {
+      setSelectedApplications(new Set<number>())
+    }
+  }
+
+  const handleSelectApplication = (id: number, checked: boolean) => {
+    const newSelected = new Set(selectedApplications)
+    if (checked) {
+      newSelected.add(id)
+    } else {
+      newSelected.delete(id)
+      setSelectAll(false)
+    }
+    setSelectedApplications(newSelected)
+  }
+
+  // Bulk Actions
+  const handleBulkDelete = async () => {
+    if (selectedApplications.size === 0) {
+      toast.error("Please select applications to delete")
+      return
+    }
+    if (confirm(`Are you sure you want to delete ${selectedApplications.size} application(s)?`)) {
+      const toastId = toast.loading("Deleting applications...")
+      try {
+        const deletePromises = Array.from(selectedApplications).map((id) => deleteApplication({ variables: { id } }))
+        await Promise.all(deletePromises)
+        setSelectedApplications(new Set())
+        setSelectAll(false)
+        toast.success(`${selectedApplications.size} application(s) deleted successfully.`, { id: toastId })
+      } catch (err) {
+        console.error(err)
+        toast.error("Failed to delete some applications.", { id: toastId })
+      }
+    }
+  }
+
+  const handleBulkDownloadResumes = async () => {
+    if (selectedApplications.size === 0) {
+      toast.error("Please select applications to download resumes")
+      return
+    }
+
+    const selectedApps = applications.filter((app: any) => selectedApplications.has(app.id) && app.resumeUrl)
+    if (selectedApps.length === 0) {
+      toast.error("No resumes available for selected applications")
+      return
+    }
+
+    const toastId = toast.loading(`Downloading ${selectedApps.length} resume(s)...`)
+    let successCount = 0
+    let failCount = 0
+
+    try {
+      for (let i = 0; i < selectedApps.length; i++) {
+        const app = selectedApps[i]
+        try {
+          const response = await fetch(app.resumeUrl)
+          if (!response.ok) {
+            throw new Error("Failed to fetch resume")
+          }
+          const blob = await response.blob()
+          const downloadUrl = window.URL.createObjectURL(blob)
+          const urlParts = app.resumeUrl.split("/")
+          const originalFilename = urlParts[urlParts.length - 1]
+          const fileExtension = originalFilename.includes(".") ? originalFilename.split(".").pop() : "pdf"
+          const filename = `${app.name.replace(/[^a-zA-Z0-9]/g, "_")}_resume.${fileExtension}`
+
+          const link = document.createElement("a")
+          link.href = downloadUrl
+          link.download = filename
+          link.style.display = "none"
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          window.URL.revokeObjectURL(downloadUrl)
+          successCount++
+
+          if (i < selectedApps.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 500))
+          }
+        } catch (error) {
+          console.error(`Failed to download resume for ${app.name}:`, error)
+          failCount++
+          window.open(app.resumeUrl, "_blank")
+        }
+      }
+
+      if (failCount === 0) {
+        toast.success(`Successfully downloaded ${successCount} resume(s)!`, { id: toastId })
+      } else {
+        toast.success(`Downloaded ${successCount} resume(s). ${failCount} opened in new tabs due to download issues.`, {
+          id: toastId,
+        })
+      }
+    } catch (error) {
+      console.error("Bulk download failed:", error)
+      toast.error("Bulk download failed. Opening resumes in new tabs instead.", { id: toastId })
+      selectedApps.forEach((app: any) => {
+        window.open(app.resumeUrl, "_blank")
+      })
+    }
+  }
+
   const clearFilters = () => {
     setSearchTerm("")
     setStatusFilter("all")
@@ -89,10 +351,38 @@ export default function AdminApplicationsPage() {
     setSourceFilter("all")
     setExperienceFilter("all")
     setCurrentPage(1)
+    setSelectedApplications(new Set())
+    setSelectAll(false)
   }
 
-  const handleDownloadResume = (url: string) => {
-    window.open(url, "_blank")
+  const handleDownloadResume = async (url: string, applicantName: string) => {
+    const toastId = toast.loading("Downloading resume...")
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error("Failed to fetch resume")
+      }
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const urlParts = url.split("/")
+      const originalFilename = urlParts[urlParts.length - 1]
+      const fileExtension = originalFilename.includes(".") ? originalFilename.split(".").pop() : "pdf"
+      const filename = `${applicantName.replace(/[^a-zA-Z0-9]/g, "_")}_resume.${fileExtension}`
+
+      const link = document.createElement("a")
+      link.href = downloadUrl
+      link.download = filename
+      link.style.display = "none"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+      toast.success("Resume downloaded successfully!", { id: toastId })
+    } catch (error) {
+      console.error("Download failed:", error)
+      toast.error("Failed to download resume. Opening in new tab instead.", { id: toastId })
+      window.open(url, "_blank")
+    }
   }
 
   const handleDelete = async (id: number) => {
@@ -139,6 +429,8 @@ export default function AdminApplicationsPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      <Navbar />
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -149,6 +441,88 @@ export default function AdminApplicationsPage() {
           <Badge className="text-lg px-3 py-1 bg-blue-600 text-white">{filteredApplications.length} Applications</Badge>
         </div>
       </div>
+
+      {/* Bulk Actions Bar */}
+      {selectedApplications.size > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <CheckSquare className="h-5 w-5 text-blue-600" />
+                <span className="font-medium text-blue-900">{selectedApplications.size} application(s) selected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const appsToExport =
+                      selectedApplications.size > 0
+                        ? applications.filter((app: any) => selectedApplications.has(app.id))
+                        : filteredApplications
+
+                    const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData(appsToExport)
+
+                    const csvContent = [headers, ...csvData]
+                      .map((row) =>
+                        row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","),
+                      )
+                      .join("\n")
+
+                    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+                    const link = document.createElement("a")
+                    const url = URL.createObjectURL(blob)
+                    link.setAttribute("href", url)
+                    link.setAttribute(
+                      "download",
+                      selectedApplications.size > 0
+                        ? `selected_applications_${new Date().toISOString().split("T")[0]}.csv`
+                        : `job_applications_${new Date().toISOString().split("T")[0]}.csv`,
+                    )
+                    link.style.visibility = "hidden"
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+
+                    toast.success(
+                      selectedApplications.size > 0
+                        ? `${selectedApplications.size} selected applications exported to CSV successfully!`
+                        : `All ${filteredApplications.length} applications exported to CSV successfully!`,
+                    )
+                  }}
+                  className="flex items-center gap-2 bg-transparent"
+                >
+                  <FileDown className="h-4 w-4" />
+                  Export CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkDownloadResumes}
+                  className="flex items-center gap-2 bg-transparent"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Resumes
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleBulkDelete} className="flex items-center gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Delete Selected
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedApplications(new Set())
+                    setSelectAll(false)
+                  }}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search and Filters */}
       <Card>
@@ -261,6 +635,13 @@ export default function AdminApplicationsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectAll}
+                    onCheckedChange={handleSelectAll}
+                    disabled={paginatedApplications.length === 0}
+                  />
+                </TableHead>
                 <TableHead>Applicant</TableHead>
                 <TableHead>Position</TableHead>
                 <TableHead>Location</TableHead>
@@ -274,6 +655,12 @@ export default function AdminApplicationsPage() {
               {paginatedApplications.map((app: any) => (
                 <TableRow key={app.id}>
                   <TableCell>
+                    <Checkbox
+                      checked={selectedApplications.has(app.id)}
+                      onCheckedChange={(checked) => handleSelectApplication(app.id, checked as boolean)}
+                    />
+                  </TableCell>
+                  <TableCell>
                     <div className="font-medium">{app.name}</div>
                     <div className="text-sm text-gray-500">{app.email}</div>
                   </TableCell>
@@ -286,12 +673,23 @@ export default function AdminApplicationsPage() {
                     {app.city}, {app.province}
                   </TableCell>
                   <TableCell>
-                    ₱
-                    {app.roleSpecific?.expectedSalary
-                      ? Number.parseInt(app.roleSpecific.expectedSalary).toLocaleString()
-                      : app.expectedSalary
-                        ? Number.parseInt(app.expectedSalary).toLocaleString()
-                        : "N/A"}
+                    ₱{(() => {
+                      if (!app.roleSpecific) return "N/A"
+                      const entry = Object.values(app.roleSpecific).find((item: any) =>
+                        (item as any)?.question?.toLowerCase().includes("expected compensation"),
+                      ) as { answer?: any }
+                      if (!entry) return "N/A"
+                      let raw = entry.answer
+                      if (typeof raw === "object" && raw !== null && "value" in raw) {
+                        raw = raw.value
+                      }
+                      const num = Number(raw)
+                      return !isNaN(num)
+                        ? num.toLocaleString("en-PH", {
+                            minimumFractionDigits: 0,
+                          })
+                        : "N/A"
+                    })()}
                   </TableCell>
                   <TableCell>{new Date(app.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell>
@@ -349,44 +747,65 @@ export default function AdminApplicationsPage() {
                               <div>
                                 <strong>Address:</strong> {app.address}, {app.city}, {app.province}
                               </div>
-                              {app.roleSpecific && Object.keys(app.roleSpecific).length > 0 && (
+                              {positionData && app.roleSpecific && Object.entries(app.roleSpecific).length > 0 && (
                                 <div>
                                   <strong>Role-Specific Information:</strong>
                                   <div className="mt-2 p-3 bg-gray-50 rounded">
-                                    {Object.entries(app.roleSpecific).map(([key, value]: [string, any]) =>
-                                      value ? (
+                                    {Object.entries(app.roleSpecific).map(([key, value]: [string, any]) => {
+                                      const label = value?.question || key
+                                      const answer = value?.answer
+                                      let displayValue = ""
+                                      if (Array.isArray(answer)) {
+                                        displayValue = answer
+                                          .map((opt: any) => (opt.input ? `${opt.value} (${opt.input})` : opt.value))
+                                          .join(", ")
+                                      } else if (typeof answer === "object" && answer !== null && "value" in answer) {
+                                        displayValue = answer.input ? `${answer.value} (${answer.input})` : answer.value
+                                      } else {
+                                        displayValue = String(answer ?? "")
+                                      }
+                                      return (
                                         <div key={key} className="mb-2">
-                                          <span className="font-medium">
-                                            {key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase())}:
-                                          </span>{" "}
-                                          {Array.isArray(value) ? value.join(", ") : value.toString()}
+                                          <span className="font-medium">{label}:</span> {displayValue}
                                         </div>
-                                      ) : null,
-                                    )}
+                                      )
+                                    })}
                                   </div>
                                 </div>
                               )}
-                              <div>
-                                <strong>Application Letter:</strong>
-                                <div className="mt-2 p-3 bg-gray-50 rounded">
-                                  <p className="whitespace-pre-wrap">{app.applicationLetter}</p>
-                                </div>
-                              </div>
-                              {app.resumeUrl && (
+                              <div className="flex gap-2 pt-4">
+                                {app.resumeUrl && (
+                                  <Button
+                                    onClick={() => handleDownloadResume(app.resumeUrl, app.name)}
+                                    className="flex gap-2 bg-blue-600 hover:bg-blue-700"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                    Download Resume
+                                  </Button>
+                                )}
                                 <Button
-                                  onClick={() => handleDownloadResume(app.resumeUrl)}
-                                  className="flex gap-2 bg-blue-600 hover:bg-blue-700"
+                                  onClick={() => exportIndividualToCSV(app)}
+                                  variant="outline"
+                                  className="flex gap-2"
                                 >
-                                  <Download className="h-4 w-4" />
-                                  View Resume
+                                  <FileText className="h-4 w-4" />
+                                  Export CSV
                                 </Button>
-                              )}
+                              </div>
                             </div>
                           </ScrollArea>
                         </DialogContent>
                       </Dialog>
+                      <Button
+                        onClick={() => exportIndividualToCSV(app)}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
                       <Button variant="destructive" size="sm" onClick={() => handleDelete(app.id)}>
-                        Delete
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -399,32 +818,26 @@ export default function AdminApplicationsPage() {
 
       {/* Pagination */}
       <div className="flex justify-center items-center gap-4">
-        <Button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)} variant="outline">
+        <Button
+          disabled={currentPage === 1 || filteredApplications.length === 0}
+          onClick={() => setCurrentPage((prev) => prev - 1)}
+          variant="outline"
+        >
           Previous
         </Button>
         <span className="text-gray-600">
-          Page {currentPage} of {totalPages} ({filteredApplications.length} results)
+          {filteredApplications.length > 0
+            ? `Page ${currentPage} of ${totalPages} (${filteredApplications.length} results)`
+            : "No results"}
         </span>
         <Button
-          disabled={currentPage === totalPages}
+          disabled={currentPage === totalPages || filteredApplications.length === 0}
           onClick={() => setCurrentPage((prev) => prev + 1)}
           variant="outline"
         >
           Next
         </Button>
       </div>
-
-      {/* No Results */}
-      {filteredApplications.length === 0 && (
-        <Card>
-          <CardContent className="text-center py-8">
-            <p className="text-gray-500">No applications found matching your criteria.</p>
-            <Button onClick={clearFilters} variant="outline" className="mt-4 bg-transparent">
-              Clear all filters
-            </Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

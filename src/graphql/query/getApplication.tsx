@@ -22,7 +22,6 @@ export const GET_JOB_APPLICATIONS = gql`
       position
       roleSpecific
       resumeUrl
-      applicationLetter
       status
     }
   }

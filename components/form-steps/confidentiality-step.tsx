@@ -67,7 +67,10 @@ export function ConfidentialityStep({
                   as of the date of the disclosure.
                 </p>
                 <br />
-                <p>{formData.name || "[Disclosing Party Name]"}</p>
+                <p className={formData.name ? "" : "text-gray-400 italic"}>
+                  {formData.name.trim() || "[Disclosing Party Name]"}
+                </p>
+
                 <br />
                 <p>ProgressPro Services Inc.</p>
               </div>

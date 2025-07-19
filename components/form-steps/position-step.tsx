@@ -11,13 +11,6 @@ import {
   SelectValue,
 } from "../ui/select"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../ui/card"
-import {
   Briefcase,
   Users,
   Calculator,
@@ -87,41 +80,11 @@ export function PositionStep({ formData, updateFormData }: PositionStepProps) {
       </div>
 
       <div className="space-y-4">
-        <Label>Which position are you applying for? *</Label>
+        
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {positions.map((position) => {
-            const Icon = getIcon(position.icon)
-            const isSelected = formData.position === position.value
-
-            return (
-              <Card
-                key={position.value}
-                className={`cursor-pointer transition-all hover:shadow-md ${
-                  isSelected ? "ring-2 ring-blue-500 bg-blue-50" : ""
-                }`}
-                onClick={() => handlePositionChange(position.value)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <Icon
-                      className={`h-5 w-5 ${
-                        isSelected ? "text-blue-600" : "text-gray-600"
-                      }`}
-                    />
-                    <CardTitle className="text-base">{position.title}</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription>{position.description}</CardDescription>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-
         <div className="mt-6">
-          <Label>Or select from dropdown:</Label>
+          <Label>What position are you applying for? <span className="text-red-500"> *</span></Label>
           <Select value={formData.position} onValueChange={handlePositionChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select a position" />
@@ -137,5 +100,7 @@ export function PositionStep({ formData, updateFormData }: PositionStepProps) {
         </div>
       </div>
     </div>
+    </div>
   )
+  
 }
