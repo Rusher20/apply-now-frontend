@@ -6,7 +6,6 @@ export const CREATE_POSITION = gql`
       id
       title
       description
-      icon
       isActive
       createdAt
       updatedAt

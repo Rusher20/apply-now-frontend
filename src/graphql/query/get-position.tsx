@@ -6,7 +6,6 @@ query GetPositions {
     id
     title
     description
-    icon
     isActive
     value
     createdAt

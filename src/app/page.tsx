@@ -1,17 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
 import { Button } from "../../components/ui/button"
 import { Progress } from "../../components/ui/progress"
+import { Badge } from "../../components/ui/badge"
 import { ConfidentialityStep } from "../../components/form-steps/confidentiality-step"
 import { BasicInfoStep } from "../../components/form-steps/basic-info-step"
 import { ApplicationSourceStep } from "../../components/form-steps/application-source-step"
 import { PositionStep } from "../../components/form-steps/position-step"
 import { RoleSpecificStep } from "../../components/form-steps/role-specific-step"
 import { ReviewStep } from "../../components/form-steps/review-step"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Save, Trash2 } from "lucide-react"
 
 export interface FormData {
   confidentialityAgreed: boolean
@@ -32,7 +33,6 @@ export interface FormData {
   position: string
   roleSpecific: Record<string, any>
   resume: File | null
-  applicationLetter: string
 }
 
 const STEPS = [
@@ -44,11 +44,15 @@ const STEPS = [
   "Review & Submit",
 ]
 
+const STORAGE_KEY = "job-application-form-data"
+const STEP_STORAGE_KEY = "job-application-current-step"
+
 export default function JobApplicationForm() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0)
   const [loading, setLoading] = useState(false)
-
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [formData, setFormData] = useState<FormData>({
     confidentialityAgreed: false,
     name: "",
@@ -68,8 +72,47 @@ export default function JobApplicationForm() {
     position: "",
     roleSpecific: {},
     resume: null,
-    applicationLetter: "",
   })
+
+  // Load saved data on component mount
+  useEffect(() => {
+    const savedData = localStorage.getItem(STORAGE_KEY)
+    const savedStep = localStorage.getItem(STEP_STORAGE_KEY)
+
+    if (savedData) {
+      try {
+        const parsedData = JSON.parse(savedData)
+        setFormData((prev) => ({ ...prev, ...parsedData }))
+        setLastSaved(new Date(parsedData.savedAt || Date.now()))
+      } catch (error) {
+        console.error("Error loading saved form data:", error)
+      }
+    }
+
+    if (savedStep) {
+      const stepNumber = Number.parseInt(savedStep, 10)
+      if (stepNumber >= 0 && stepNumber < STEPS.length) {
+        setCurrentStep(stepNumber)
+      }
+    }
+
+    setIsLoaded(true)
+  }, [])
+
+  // Save data to localStorage whenever formData or currentStep changes
+  useEffect(() => {
+    if (!isLoaded) return // Don't save during initial load
+
+    const dataToSave = {
+      ...formData,
+      resume: null, // Don't save file object
+      savedAt: new Date().toISOString(),
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
+    localStorage.setItem(STEP_STORAGE_KEY, currentStep.toString())
+    setLastSaved(new Date())
+  }, [formData, currentStep, isLoaded])
 
   const updateFormData = (updates: Partial<FormData>) => {
     setFormData((prev) => ({ ...prev, ...updates }))
@@ -88,6 +131,35 @@ export default function JobApplicationForm() {
 
   const prevStep = () => {
     if (currentStep > 0) setCurrentStep(currentStep - 1)
+  }
+
+  const clearSavedData = () => {
+    if (confirm("Are you sure you want to clear all saved progress? This action cannot be undone.")) {
+      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(STEP_STORAGE_KEY)
+      setFormData({
+        confidentialityAgreed: false,
+        name: "",
+        age: "",
+        gender: "",
+        email: "",
+        contactNumber: "",
+        address: "",
+        city: "",
+        province: "",
+        region: "",
+        education: "",
+        applicationSource: "",
+        referralName: "",
+        hasStableInternet: "",
+        internetProvider: "",
+        position: "",
+        roleSpecific: {},
+        resume: null,
+      })
+      setCurrentStep(0)
+      setLastSaved(null)
+    }
   }
 
   const handleSubmit = async () => {
@@ -122,7 +194,6 @@ export default function JobApplicationForm() {
             internetProvider: formData.internetProvider || null,
             position: formData.position,
             roleSpecific: formData.roleSpecific,
-            applicationLetter: formData.applicationLetter,
           },
           file: null,
         },
@@ -147,6 +218,9 @@ export default function JobApplicationForm() {
         console.error("GraphQL Error:", result.errors)
         alert("Submission failed.")
       } else {
+        // Clear saved data on successful submission
+        localStorage.removeItem(STORAGE_KEY)
+        localStorage.removeItem(STEP_STORAGE_KEY)
         router.push("/application/confirmation")
       }
     } catch (error) {
@@ -195,13 +269,24 @@ export default function JobApplicationForm() {
       case 4:
         return true
       case 5:
-        return formData.resume && formData.applicationLetter
+        return !!formData.resume
       default:
         return false
     }
   }
 
   const progress = ((currentStep + 1) / STEPS.length) * 100
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading please wait...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -212,6 +297,19 @@ export default function JobApplicationForm() {
           <p className="text-gray-600">
             Step {currentStep + 1} of {STEPS.length}: {STEPS[currentStep]}
           </p>
+
+          {/* Progress save indicator */}
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearSavedData}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Clear Progress
+            </Button>
+          </div>
         </div>
 
         <div className="mb-8">
@@ -224,7 +322,6 @@ export default function JobApplicationForm() {
           </CardHeader>
           <CardContent className="space-y-6">
             {renderStep()}
-
             <div className="flex justify-between pt-6 border-t">
               <Button
                 type="button"
@@ -236,7 +333,6 @@ export default function JobApplicationForm() {
                 <ChevronLeft className="h-4 w-4" />
                 Previous
               </Button>
-
               {currentStep === STEPS.length - 1 ? (
                 <Button onClick={handleSubmit} disabled={!canProceed() || loading} className="flex items-center gap-2">
                   {loading ? "Submitting..." : "Submit Application"}

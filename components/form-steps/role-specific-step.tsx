@@ -19,6 +19,7 @@ import {
 
 interface RoleSpecificStepProps {
   formData: FormData;
+  updateFormData: (updates: Partial<FormData>) => void;
   updateRoleSpecific: (updates: Partial<FormData["roleSpecific"]>) => void;
 }
 
@@ -52,8 +53,17 @@ export function RoleSpecificStep({
   );
   const questions = (selected?.questions ?? []).filter((q: any) => q.required);
 
-  const handleChange = (qId: number, value: any) => {
-    updateRoleSpecific({ [qId]: value });
+  const handleChange = (
+    qId: number,
+    answerValue: any,
+    questionLabel?: string
+  ) => {
+    updateRoleSpecific({
+      [qId]: {
+        question: questionLabel,
+        answer: answerValue,
+      },
+    });
   };
 
   return (
@@ -64,10 +74,15 @@ export function RoleSpecificStep({
       </div>
 
       {questions.map((q: any) => {
-        const stored = formData.roleSpecific?.[q.id];
-        const valueObj: OptionWithInput = typeof stored === "object" ? stored : { value: stored };
-        const currentValue = valueObj.value || "";
-        const selectedOptions = (formData.roleSpecific?.[q.id] as OptionWithInput[]) || [];
+        const stored = formData.roleSpecific?.[q.id]?.answer;
+        const valueObj: OptionWithInput =
+          typeof stored === "object" && !Array.isArray(stored)
+            ? stored
+            : { value: stored };
+        const currentValue = valueObj?.value || "";
+        const selectedOptions: OptionWithInput[] = Array.isArray(stored)
+          ? stored
+          : [];
 
         return (
           <div key={q.id} className="space-y-2">
@@ -75,45 +90,39 @@ export function RoleSpecificStep({
               {q.label}
               {q.required && <span className="text-red-500"> *</span>}
             </Label>
-
-            {/* Text */}
-            {q.type === "text" && (
-              <Input
-                placeholder={q.placeholder}
-                value={currentValue}
-                onChange={(e) => handleChange(q.id, e.target.value)}
-              />
-            )}
-
-            {/* Number */}
             {q.type === "number" && (
               <Input
                 type="number"
                 placeholder={q.placeholder}
                 value={currentValue}
-                onChange={(e) => handleChange(q.id, e.target.value)}
+                onChange={(e) =>
+                  handleChange(q.id, e.target.value, q.label)
+                }
               />
             )}
-
-            {/* Textarea */}
             {q.type === "textarea" && (
               <Textarea
                 placeholder={q.placeholder}
                 value={currentValue}
-                onChange={(e) => handleChange(q.id, e.target.value)}
+                onChange={(e) =>
+                  handleChange(q.id, e.target.value, q.label)
+                }
               />
             )}
-
-            {/* Radio */}
             {q.type === "radio" && (
               <RadioGroup
                 value={currentValue}
-                onValueChange={(val) => handleChange(q.id, { value: val })}
+                onValueChange={(val) =>
+                  handleChange(q.id, { value: val }, q.label)
+                }
               >
                 {q.options.map((opt: any) => (
                   <div key={opt.id} className="flex flex-col">
                     <div className="flex items-center gap-2">
-                      <RadioGroupItem value={opt.value} id={`${q.id}-${opt.id}`} />
+                      <RadioGroupItem
+                        value={opt.value}
+                        id={`${q.id}-${opt.id}`}
+                      />
                       <Label htmlFor={`${q.id}-${opt.id}`}>{opt.value}</Label>
                     </div>
                     {opt.requiresInput && currentValue === opt.value && (
@@ -122,10 +131,14 @@ export function RoleSpecificStep({
                         placeholder={opt.inputLabel || "Please specify"}
                         value={valueObj.input || ""}
                         onChange={(e) =>
-                          handleChange(q.id, {
-                            value: opt.value,
-                            input: e.target.value,
-                          })
+                          handleChange(
+                            q.id,
+                            {
+                              value: opt.value,
+                              input: e.target.value,
+                            },
+                            q.label
+                          )
                         }
                       />
                     )}
@@ -133,12 +146,12 @@ export function RoleSpecificStep({
                 ))}
               </RadioGroup>
             )}
-
-            {/* Checkbox */}
             {q.type === "checkbox" && (
               <div className="space-y-2">
                 {q.options.map((opt: any) => {
-                  const hasObj = selectedOptions.find((o) => o.value === opt.value);
+                  const hasObj = selectedOptions.find(
+                    (o) => o.value === opt.value
+                  );
                   const checked = !!hasObj;
                   const inputVal = hasObj?.input || "";
 
@@ -159,12 +172,16 @@ export function RoleSpecificStep({
                                   : { value: opt.value },
                               ];
                             } else {
-                              updated = arr.filter((o) => o.value !== opt.value);
+                              updated = arr.filter(
+                                (o) => o.value !== opt.value
+                              );
                             }
-                            handleChange(q.id, updated);
+                            handleChange(q.id, updated, q.label);
                           }}
                         />
-                        <Label htmlFor={`${q.id}-${opt.id}`}>{opt.value}</Label>
+                        <Label htmlFor={`${q.id}-${opt.id}`}>
+                          {opt.value}
+                        </Label>
                       </div>
                       {opt.requiresInput && checked && (
                         <Input
@@ -177,7 +194,7 @@ export function RoleSpecificStep({
                                 ? { ...o, input: e.target.value }
                                 : o
                             );
-                            handleChange(q.id, updated);
+                            handleChange(q.id, updated, q.label);
                           }}
                         />
                       )}
@@ -186,13 +203,13 @@ export function RoleSpecificStep({
                 })}
               </div>
             )}
-
-            {/* Dropdown */}
             {q.type === "dropdown" && (
               <>
                 <Select
                   value={currentValue}
-                  onValueChange={(val) => handleChange(q.id, { value: val })}
+                  onValueChange={(val) =>
+                    handleChange(q.id, { value: val }, q.label)
+                  }
                 >
                   <SelectTrigger className="w-full mt-1">
                     <SelectValue placeholder="Choose…" />
@@ -205,10 +222,10 @@ export function RoleSpecificStep({
                     ))}
                   </SelectContent>
                 </Select>
-
-                {/* Show input for dropdown with requiresInput */}
                 {(() => {
-                  const selectedOpt = q.options.find((o: any) => o.value === currentValue);
+                  const selectedOpt = q.options.find(
+                    (o: any) => o.value === currentValue
+                  );
                   if (selectedOpt?.requiresInput) {
                     return (
                       <Input
@@ -216,10 +233,14 @@ export function RoleSpecificStep({
                         placeholder={selectedOpt.inputLabel || "Please specify"}
                         value={valueObj.input || ""}
                         onChange={(e) =>
-                          handleChange(q.id, {
-                            value: currentValue,
-                            input: e.target.value,
-                          })
+                          handleChange(
+                            q.id,
+                            {
+                              value: currentValue,
+                              input: e.target.value,
+                            },
+                            q.label
+                          )
                         }
                       />
                     );

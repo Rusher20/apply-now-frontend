@@ -26,7 +26,7 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
 
       <div className="space-y-6">
         <div className="space-y-2">
-          <Label>How did you find this job posting? *</Label>
+          <Label>How did you find this job posting? <span className="text-red-500"> *</span></Label>
           <Select
             value={formData.applicationSource}
             onValueChange={(value) => handleInputChange("applicationSource", value)}
@@ -37,19 +37,17 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
             <SelectContent>
               <SelectItem value="linkedin">LinkedIn</SelectItem>
               <SelectItem value="mynimo">Mynimo</SelectItem>
-              <SelectItem value="jobstreet">JobStreet</SelectItem>
               <SelectItem value="indeed">Indeed</SelectItem>
               <SelectItem value="company-website">Company Website</SelectItem>
               <SelectItem value="referral">Employee Referral</SelectItem>
               <SelectItem value="facebook">Facebook</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {formData.applicationSource === "referral" && (
           <div className="space-y-2">
-            <Label htmlFor="referralName">Referral Name *</Label>
+            <Label htmlFor="referralName">Referral Name </Label>
             <Input
               id="referralName"
               value={formData.referralName}
@@ -68,7 +66,7 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
 
           <div className="space-y-4">
             <div className="space-y-3">
-              <Label>Do you have a stable home internet connection? *</Label>
+              <Label>Do you have a stable home internet connection? <span className="text-red-500"> *</span></Label>
               <RadioGroup
                 value={formData.hasStableInternet}
                 onValueChange={(value: string) => handleInputChange("hasStableInternet", value)}
@@ -87,7 +85,7 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
 
             {formData.hasStableInternet === "yes" && (
               <div className="space-y-2">
-                <Label htmlFor="internetProvider">Internet Service Provider *</Label>
+                <Label htmlFor="internetProvider">Internet Service Provider <span className="text-red-500"> *</span></Label>
                 <Select
                   value={formData.internetProvider}
                   onValueChange={(value) => handleInputChange("internetProvider", value)}
@@ -102,7 +100,6 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
                     <SelectItem value="sky">Sky</SelectItem>
                     <SelectItem value="converge">Converge</SelectItem>
                     <SelectItem value="dito">Dito</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
