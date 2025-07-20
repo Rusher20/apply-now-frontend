@@ -208,7 +208,7 @@ export default function JobApplicationForm() {
       body.append("map", map)
       body.append("1", formData.resume)
 
-      const response = await fetch("http://localhost:3000/graphql", {
+      const response = await fetch("https://apply-now-backend-production.up.railway.app/graphql", {
         method: "POST",
         body,
       })
