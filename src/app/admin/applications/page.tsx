@@ -47,7 +47,6 @@ export default function AdminApplicationsPage() {
   const [updateStatus] = useMutation(UPDATE_JOB_APPLICATION_STATUS, {
     refetchQueries: [{ query: GET_JOB_APPLICATIONS }],
   })
-
   const { data: positionData } = useQuery(GET_POSITION)
 
   const applications = data?.jobApplications || []
@@ -65,7 +64,6 @@ export default function AdminApplicationsPage() {
       app.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.position?.toLowerCase().includes(searchTerm.toLowerCase())
-
     const matchStatus = statusFilter === "all" || app.status === statusFilter
     const matchPosition = positionFilter === "all" || app.position === positionFilter
     const matchEducation = educationFilter === "all" || app.education === educationFilter
@@ -186,86 +184,10 @@ export default function AdminApplicationsPage() {
     return { headers, csvData, roleSpecificQuestionsArray }
   }
 
-  // Improved download function with better error handling and CORS support
-  const downloadFileFromUrl = async (url: string, filename: string): Promise<boolean> => {
-    try {
-      // First, try to fetch with credentials and proper headers
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Accept:
-            "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,*/*",
-        },
-        mode: "cors",
-        credentials: "same-origin",
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const blob = await response.blob()
-
-      // Create download link
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = downloadUrl
-      link.download = filename
-      link.style.display = "none"
-
-      // Add to DOM, click, and remove
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-
-      // Clean up the object URL
-      setTimeout(() => {
-        window.URL.revokeObjectURL(downloadUrl)
-      }, 100)
-
-      return true
-    } catch (error) {
-      console.error("Download failed:", error)
-      return false
-    }
-  }
-
-  // Alternative download method using a proxy or server endpoint
-  const downloadViaProxy = async (url: string, filename: string): Promise<boolean> => {
-    try {
-      // If you have a server endpoint that can proxy the download
-      const proxyUrl = `/api/download-resume?url=${encodeURIComponent(url)}`
-
-      const response = await fetch(proxyUrl)
-      if (!response.ok) {
-        throw new Error(`Proxy download failed: ${response.status}`)
-      }
-
-      const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = downloadUrl
-      link.download = filename
-      link.style.display = "none"
-
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-
-      setTimeout(() => {
-        window.URL.revokeObjectURL(downloadUrl)
-      }, 100)
-
-      return true
-    } catch (error) {
-      console.error("Proxy download failed:", error)
-      return false
-    }
-  }
-
   // Individual CSV Export Function
   const exportIndividualToCSV = (application: any) => {
     const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData([application])
+
     const csvContent = [headers, ...csvData]
       .map((row) => row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","))
       .join("\n")
@@ -282,6 +204,7 @@ export default function AdminApplicationsPage() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+
     toast.success(
       `Application exported to CSV successfully! (${roleSpecificQuestionsArray.length} role-specific questions included)`,
     )
@@ -290,6 +213,7 @@ export default function AdminApplicationsPage() {
   // Bulk CSV Export Function
   const exportToCSV = () => {
     const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData(filteredApplications)
+
     const csvContent = [headers, ...csvData]
       .map((row) => row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","))
       .join("\n")
@@ -303,6 +227,7 @@ export default function AdminApplicationsPage() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+
     toast.success(
       `Applications exported to CSV successfully! (${roleSpecificQuestionsArray.length} role-specific questions included)`,
     )
@@ -336,7 +261,6 @@ export default function AdminApplicationsPage() {
       toast.error("Please select applications to delete")
       return
     }
-
     if (confirm(`Are you sure you want to delete ${selectedApplications.size} application(s)?`)) {
       const toastId = toast.loading("Deleting applications...")
       try {
@@ -359,7 +283,6 @@ export default function AdminApplicationsPage() {
     }
 
     const selectedApps = applications.filter((app: any) => selectedApplications.has(app.id) && app.resumeUrl)
-
     if (selectedApps.length === 0) {
       toast.error("No resumes available for selected applications")
       return
@@ -369,45 +292,53 @@ export default function AdminApplicationsPage() {
     let successCount = 0
     let failCount = 0
 
-    for (let i = 0; i < selectedApps.length; i++) {
-      const app = selectedApps[i]
+    try {
+      for (let i = 0; i < selectedApps.length; i++) {
+        const app = selectedApps[i]
+        try {
+          const response = await fetch(app.resumeUrl)
+          if (!response.ok) {
+            throw new Error("Failed to fetch resume")
+          }
+          const blob = await response.blob()
+          const downloadUrl = window.URL.createObjectURL(blob)
+          const urlParts = app.resumeUrl.split("/")
+          const originalFilename = urlParts[urlParts.length - 1]
+          const fileExtension = originalFilename.includes(".") ? originalFilename.split(".").pop() : "pdf"
+          const filename = `${app.name.replace(/[^a-zA-Z0-9]/g, "_")}_resume.${fileExtension}`
 
-      // Generate filename
-      const urlParts = app.resumeUrl.split("/")
-      const originalFilename = urlParts[urlParts.length - 1]
-      const fileExtension = originalFilename.includes(".") ? originalFilename.split(".").pop() : "pdf"
-      const filename = `${app.name.replace(/[^a-zA-Z0-9]/g, "_")}_resume.${fileExtension}`
+          const link = document.createElement("a")
+          link.href = downloadUrl
+          link.download = filename
+          link.style.display = "none"
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          window.URL.revokeObjectURL(downloadUrl)
+          successCount++
 
-      // Try multiple download methods
-      let downloadSuccess = false
-
-      // Method 1: Direct download
-      downloadSuccess = await downloadFileFromUrl(app.resumeUrl, filename)
-
-      // Method 2: Try proxy download if direct fails
-      if (!downloadSuccess) {
-        downloadSuccess = await downloadViaProxy(app.resumeUrl, filename)
+          if (i < selectedApps.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 500))
+          }
+        } catch (error) {
+          console.error(`Failed to download resume for ${app.name}:`, error)
+          failCount++
+          window.open(app.resumeUrl, "_blank")
+        }
       }
 
-      if (downloadSuccess) {
-        successCount++
+      if (failCount === 0) {
+        toast.success(`Successfully downloaded ${successCount} resume(s)!`, { id: toastId })
       } else {
-        failCount++
-        // Fallback: open in new tab
+        toast.success(`Downloaded ${successCount} resume(s). ${failCount} opened in new tabs due to download issues.`, {
+          id: toastId,
+        })
+      }
+    } catch (error) {
+      console.error("Bulk download failed:", error)
+      toast.error("Bulk download failed. Opening resumes in new tabs instead.", { id: toastId })
+      selectedApps.forEach((app: any) => {
         window.open(app.resumeUrl, "_blank")
-      }
-
-      // Add delay between downloads to prevent overwhelming the browser
-      if (i < selectedApps.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 500))
-      }
-    }
-
-    if (failCount === 0) {
-      toast.success(`Successfully downloaded ${successCount} resume(s)!`, { id: toastId })
-    } else {
-      toast.success(`Downloaded ${successCount} resume(s). ${failCount} opened in new tabs due to download issues.`, {
-        id: toastId,
       })
     }
   }
@@ -426,27 +357,29 @@ export default function AdminApplicationsPage() {
 
   const handleDownloadResume = async (url: string, applicantName: string) => {
     const toastId = toast.loading("Downloading resume...")
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error("Failed to fetch resume")
+      }
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const urlParts = url.split("/")
+      const originalFilename = urlParts[urlParts.length - 1]
+      const fileExtension = originalFilename.includes(".") ? originalFilename.split(".").pop() : "pdf"
+      const filename = `${applicantName.replace(/[^a-zA-Z0-9]/g, "_")}_resume.${fileExtension}`
 
-    // Generate filename
-    const urlParts = url.split("/")
-    const originalFilename = urlParts[urlParts.length - 1]
-    const fileExtension = originalFilename.includes(".") ? originalFilename.split(".").pop() : "pdf"
-    const filename = `${applicantName.replace(/[^a-zA-Z0-9]/g, "_")}_resume.${fileExtension}`
-
-    // Try multiple download methods
-    let downloadSuccess = false
-
-    // Method 1: Direct download
-    downloadSuccess = await downloadFileFromUrl(url, filename)
-
-    // Method 2: Try proxy download if direct fails
-    if (!downloadSuccess) {
-      downloadSuccess = await downloadViaProxy(url, filename)
-    }
-
-    if (downloadSuccess) {
+      const link = document.createElement("a")
+      link.href = downloadUrl
+      link.download = filename
+      link.style.display = "none"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
       toast.success("Resume downloaded successfully!", { id: toastId })
-    } else {
+    } catch (error) {
+      console.error("Download failed:", error)
       toast.error("Failed to download resume. Opening in new tab instead.", { id: toastId })
       window.open(url, "_blank")
     }
@@ -527,12 +460,15 @@ export default function AdminApplicationsPage() {
                       selectedApplications.size > 0
                         ? applications.filter((app: any) => selectedApplications.has(app.id))
                         : filteredApplications
+
                     const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData(appsToExport)
+
                     const csvContent = [headers, ...csvData]
                       .map((row) =>
                         row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","),
                       )
                       .join("\n")
+
                     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
                     const link = document.createElement("a")
                     const url = URL.createObjectURL(blob)
@@ -547,6 +483,7 @@ export default function AdminApplicationsPage() {
                     document.body.appendChild(link)
                     link.click()
                     document.body.removeChild(link)
+
                     toast.success(
                       selectedApplications.size > 0
                         ? `${selectedApplications.size} selected applications exported to CSV successfully!`
