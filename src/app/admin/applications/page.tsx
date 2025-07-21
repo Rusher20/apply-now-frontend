@@ -20,6 +20,9 @@ import { UPDATE_JOB_APPLICATION_STATUS } from "@/graphql/mutations/updateStatus"
 import { GET_POSITION } from "@/graphql/query/get-position"
 import Navbar from "../../../../components/navbar"
 
+// Add your backend URL - you can also make this an environment variable
+const BACKEND_URL = "https://apply-now-backend-production.up.railway.app"
+
 export default function AdminApplicationsPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
@@ -54,6 +57,31 @@ export default function AdminApplicationsPage() {
   const uniqueEducation = [...new Set(applications.map((app: any) => app.education).filter(Boolean))] as string[]
   const uniqueSources = [...new Set(applications.map((app: any) => app.applicationSource).filter(Boolean))] as string[]
 
+  // Helper function to convert relative URLs to absolute URLs
+  const getAbsoluteUrl = (url: string) => {
+    if (!url) return ""
+
+    console.log("Original URL:", url) // Debug log
+
+    // If it's already an absolute URL, return as is
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      console.log("Already absolute:", url) // Debug log
+      return url
+    }
+
+    // If it's a relative URL, prepend the backend URL
+    if (url.startsWith("/")) {
+      const absoluteUrl = `${BACKEND_URL}${url}`
+      console.log("Converted to absolute:", absoluteUrl) // Debug log
+      return absoluteUrl
+    }
+
+    // If it doesn't start with /, add both / and backend URL
+    const absoluteUrl = `${BACKEND_URL}/${url}`
+    console.log("Converted to absolute (with /):", absoluteUrl) // Debug log
+    return absoluteUrl
+  }
+
   useEffect(() => {
     const token = localStorage.getItem("token")
     if (!token) router.push("/login")
@@ -64,6 +92,7 @@ export default function AdminApplicationsPage() {
       app.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.position?.toLowerCase().includes(searchTerm.toLowerCase())
+
     const matchStatus = statusFilter === "all" || app.status === statusFilter
     const matchPosition = positionFilter === "all" || app.position === positionFilter
     const matchEducation = educationFilter === "all" || app.education === educationFilter
@@ -187,7 +216,6 @@ export default function AdminApplicationsPage() {
   // Individual CSV Export Function
   const exportIndividualToCSV = (application: any) => {
     const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData([application])
-
     const csvContent = [headers, ...csvData]
       .map((row) => row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","))
       .join("\n")
@@ -204,7 +232,6 @@ export default function AdminApplicationsPage() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-
     toast.success(
       `Application exported to CSV successfully! (${roleSpecificQuestionsArray.length} role-specific questions included)`,
     )
@@ -213,7 +240,6 @@ export default function AdminApplicationsPage() {
   // Bulk CSV Export Function
   const exportToCSV = () => {
     const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData(filteredApplications)
-
     const csvContent = [headers, ...csvData]
       .map((row) => row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","))
       .join("\n")
@@ -227,7 +253,6 @@ export default function AdminApplicationsPage() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-
     toast.success(
       `Applications exported to CSV successfully! (${roleSpecificQuestionsArray.length} role-specific questions included)`,
     )
@@ -261,6 +286,7 @@ export default function AdminApplicationsPage() {
       toast.error("Please select applications to delete")
       return
     }
+
     if (confirm(`Are you sure you want to delete ${selectedApplications.size} application(s)?`)) {
       const toastId = toast.loading("Deleting applications...")
       try {
@@ -282,7 +308,16 @@ export default function AdminApplicationsPage() {
       return
     }
 
-    const selectedApps = applications.filter((app: any) => selectedApplications.has(app.id) && app.resumeUrl)
+    // Make sure we're getting the absolute URL for each app
+    const selectedApps = applications
+      .filter((app: any) => {
+        return selectedApplications.has(app.id) && app.resumeUrl
+      })
+      .map((app: any) => ({
+        ...app,
+        resumeUrl: getAbsoluteUrl(app.resumeUrl), // Convert to absolute URL here
+      }))
+
     if (selectedApps.length === 0) {
       toast.error("No resumes available for selected applications")
       return
@@ -295,13 +330,27 @@ export default function AdminApplicationsPage() {
     try {
       for (let i = 0; i < selectedApps.length; i++) {
         const app = selectedApps[i]
+        // app.resumeUrl is already absolute now
+
         try {
-          const response = await fetch(app.resumeUrl)
+          console.log("Attempting to download from:", app.resumeUrl) // Debug log
+
+          const response = await fetch(app.resumeUrl, {
+            method: "GET",
+            headers: {
+              Accept:
+                "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,*/*",
+            },
+          })
+
           if (!response.ok) {
-            throw new Error("Failed to fetch resume")
+            throw new Error(`HTTP error! status: ${response.status}`)
           }
+
           const blob = await response.blob()
           const downloadUrl = window.URL.createObjectURL(blob)
+
+          // Extract filename from original URL
           const urlParts = app.resumeUrl.split("/")
           const originalFilename = urlParts[urlParts.length - 1]
           const fileExtension = originalFilename.includes(".") ? originalFilename.split(".").pop() : "pdf"
@@ -315,6 +364,7 @@ export default function AdminApplicationsPage() {
           link.click()
           document.body.removeChild(link)
           window.URL.revokeObjectURL(downloadUrl)
+
           successCount++
 
           if (i < selectedApps.length - 1) {
@@ -357,13 +407,25 @@ export default function AdminApplicationsPage() {
 
   const handleDownloadResume = async (url: string, applicantName: string) => {
     const toastId = toast.loading("Downloading resume...")
+    const absoluteUrl = getAbsoluteUrl(url)
+
     try {
-      const response = await fetch(url)
+      const response = await fetch(absoluteUrl, {
+        method: "GET",
+        headers: {
+          Accept:
+            "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,*/*",
+        },
+      })
+
       if (!response.ok) {
-        throw new Error("Failed to fetch resume")
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
+
       const blob = await response.blob()
       const downloadUrl = window.URL.createObjectURL(blob)
+
+      // Extract filename from URL or create a default one
       const urlParts = url.split("/")
       const originalFilename = urlParts[urlParts.length - 1]
       const fileExtension = originalFilename.includes(".") ? originalFilename.split(".").pop() : "pdf"
@@ -377,11 +439,12 @@ export default function AdminApplicationsPage() {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(downloadUrl)
+
       toast.success("Resume downloaded successfully!", { id: toastId })
     } catch (error) {
       console.error("Download failed:", error)
       toast.error("Failed to download resume. Opening in new tab instead.", { id: toastId })
-      window.open(url, "_blank")
+      window.open(absoluteUrl, "_blank")
     }
   }
 
@@ -460,9 +523,7 @@ export default function AdminApplicationsPage() {
                       selectedApplications.size > 0
                         ? applications.filter((app: any) => selectedApplications.has(app.id))
                         : filteredApplications
-
                     const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData(appsToExport)
-
                     const csvContent = [headers, ...csvData]
                       .map((row) =>
                         row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","),
@@ -483,7 +544,6 @@ export default function AdminApplicationsPage() {
                     document.body.appendChild(link)
                     link.click()
                     document.body.removeChild(link)
-
                     toast.success(
                       selectedApplications.size > 0
                         ? `${selectedApplications.size} selected applications exported to CSV successfully!`
@@ -776,7 +836,7 @@ export default function AdminApplicationsPage() {
                               <div className="flex gap-2 pt-4">
                                 {app.resumeUrl && (
                                   <Button
-                                    onClick={() => handleDownloadResume(app.resumeUrl, app.name)}
+                                    onClick={() => handleDownloadResume(getAbsoluteUrl(app.resumeUrl), app.name)}
                                     className="flex gap-2 bg-blue-600 hover:bg-blue-700"
                                   >
                                     <Download className="h-4 w-4" />
