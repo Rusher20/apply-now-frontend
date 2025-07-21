@@ -28,13 +28,16 @@ export default function AdminApplicationsPage() {
   const [selectedApplication, setSelectedApplication] = useState<any>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+
   // Bulk selection state
   const [selectedApplications, setSelectedApplications] = useState<Set<number>>(new Set())
   const [selectAll, setSelectAll] = useState(false)
+
   // Advanced filters
   const [educationFilter, setEducationFilter] = useState("all")
   const [sourceFilter, setSourceFilter] = useState("all")
   const [experienceFilter, setExperienceFilter] = useState("all")
+
   const itemsPerPage = 10
 
   const { data, loading, error } = useQuery(GET_JOB_APPLICATIONS)
@@ -65,6 +68,7 @@ export default function AdminApplicationsPage() {
     const matchPosition = positionFilter === "all" || app.position === positionFilter
     const matchEducation = educationFilter === "all" || app.education === educationFilter
     const matchSource = sourceFilter === "all" || app.applicationSource === sourceFilter
+
     let matchExperience = true
     if (experienceFilter !== "all" && app.roleSpecific && positionData?.positions) {
       const position = positionData.positions.find((pos: any) => pos.value === app.position)
@@ -73,31 +77,13 @@ export default function AdminApplicationsPage() {
       const answerValue = answerObj?.answer?.value || answerObj?.answer
       matchExperience = answerValue === experienceFilter
     }
+
     return matchSearch && matchStatus && matchPosition && matchEducation && matchSource && matchExperience
   })
 
   const totalPages = Math.ceil(filteredApplications.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedApplications = filteredApplications.slice(startIndex, startIndex + itemsPerPage)
-
-  // Helper function to get the full resume URL
-  const getFullResumeUrl = (relativePath: string) => {
-    if (!relativePath) return null
-    // Check if it's already an absolute URL
-    if (relativePath.startsWith("http://") || relativePath.startsWith("https://")) {
-      return relativePath
-    }
-    // Prepend the backend URL from environment variable
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
-    if (!backendUrl) {
-      console.warn("NEXT_PUBLIC_BACKEND_URL is not set. Resume URLs might be incorrect.")
-      // Fallback to the relative path if the environment variable is not set
-      // This might still lead to issues if the backend is not on the same origin
-      return relativePath
-    }
-    // Ensure no double slashes if backendUrl ends with / and relativePath starts with /
-    return `${backendUrl.endsWith("/") ? backendUrl.slice(0, -1) : backendUrl}${relativePath.startsWith("/") ? relativePath : `/${relativePath}`}`
-  }
 
   // Helper function to generate CSV data for applications
   const generateCSVData = (applicationsToExport: any[]) => {
@@ -112,6 +98,7 @@ export default function AdminApplicationsPage() {
         })
       }
     })
+
     const roleSpecificQuestionsArray = Array.from(allRoleSpecificQuestions).sort()
 
     const headers = [
@@ -190,6 +177,7 @@ export default function AdminApplicationsPage() {
 
       // Add role-specific answers in the same order as headers
       const roleSpecificData = roleSpecificQuestionsArray.map((question) => roleSpecificAnswers[question] || "")
+
       return [...baseData, ...roleSpecificData]
     })
 
@@ -199,9 +187,11 @@ export default function AdminApplicationsPage() {
   // Individual CSV Export Function
   const exportIndividualToCSV = (application: any) => {
     const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData([application])
+
     const csvContent = [headers, ...csvData]
       .map((row) => row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","))
       .join("\n")
+
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     const url = URL.createObjectURL(blob)
@@ -214,6 +204,7 @@ export default function AdminApplicationsPage() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+
     toast.success(
       `Application exported to CSV successfully! (${roleSpecificQuestionsArray.length} role-specific questions included)`,
     )
@@ -222,9 +213,11 @@ export default function AdminApplicationsPage() {
   // Bulk CSV Export Function
   const exportToCSV = () => {
     const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData(filteredApplications)
+
     const csvContent = [headers, ...csvData]
       .map((row) => row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","))
       .join("\n")
+
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     const url = URL.createObjectURL(blob)
@@ -234,6 +227,7 @@ export default function AdminApplicationsPage() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+
     toast.success(
       `Applications exported to CSV successfully! (${roleSpecificQuestionsArray.length} role-specific questions included)`,
     )
@@ -287,6 +281,7 @@ export default function AdminApplicationsPage() {
       toast.error("Please select applications to download resumes")
       return
     }
+
     const selectedApps = applications.filter((app: any) => selectedApplications.has(app.id) && app.resumeUrl)
     if (selectedApps.length === 0) {
       toast.error("No resumes available for selected applications")
@@ -300,15 +295,8 @@ export default function AdminApplicationsPage() {
     try {
       for (let i = 0; i < selectedApps.length; i++) {
         const app = selectedApps[i]
-        const fullResumeUrl = getFullResumeUrl(app.resumeUrl)
-        if (!fullResumeUrl) {
-          console.error(`Invalid resume URL for ${app.name}: ${app.resumeUrl}`)
-          failCount++
-          continue // Skip to next app
-        }
-
         try {
-          const response = await fetch(fullResumeUrl)
+          const response = await fetch(app.resumeUrl)
           if (!response.ok) {
             throw new Error("Failed to fetch resume")
           }
@@ -318,6 +306,7 @@ export default function AdminApplicationsPage() {
           const originalFilename = urlParts[urlParts.length - 1]
           const fileExtension = originalFilename.includes(".") ? originalFilename.split(".").pop() : "pdf"
           const filename = `${app.name.replace(/[^a-zA-Z0-9]/g, "_")}_resume.${fileExtension}`
+
           const link = document.createElement("a")
           link.href = downloadUrl
           link.download = filename
@@ -327,16 +316,17 @@ export default function AdminApplicationsPage() {
           document.body.removeChild(link)
           window.URL.revokeObjectURL(downloadUrl)
           successCount++
+
           if (i < selectedApps.length - 1) {
             await new Promise((resolve) => setTimeout(resolve, 500))
           }
         } catch (error) {
           console.error(`Failed to download resume for ${app.name}:`, error)
           failCount++
-          // Open in new tab as a fallback
-          window.open(fullResumeUrl, "_blank")
+          window.open(app.resumeUrl, "_blank")
         }
       }
+
       if (failCount === 0) {
         toast.success(`Successfully downloaded ${successCount} resume(s)!`, { id: toastId })
       } else {
@@ -348,10 +338,7 @@ export default function AdminApplicationsPage() {
       console.error("Bulk download failed:", error)
       toast.error("Bulk download failed. Opening resumes in new tabs instead.", { id: toastId })
       selectedApps.forEach((app: any) => {
-        const fullResumeUrl = getFullResumeUrl(app.resumeUrl)
-        if (fullResumeUrl) {
-          window.open(fullResumeUrl, "_blank")
-        }
+        window.open(app.resumeUrl, "_blank")
       })
     }
   }
@@ -370,14 +357,8 @@ export default function AdminApplicationsPage() {
 
   const handleDownloadResume = async (url: string, applicantName: string) => {
     const toastId = toast.loading("Downloading resume...")
-    const fullResumeUrl = getFullResumeUrl(url)
-    if (!fullResumeUrl) {
-      toast.error("Resume URL is invalid.", { id: toastId })
-      return
-    }
-
     try {
-      const response = await fetch(fullResumeUrl)
+      const response = await fetch(url)
       if (!response.ok) {
         throw new Error("Failed to fetch resume")
       }
@@ -387,6 +368,7 @@ export default function AdminApplicationsPage() {
       const originalFilename = urlParts[urlParts.length - 1]
       const fileExtension = originalFilename.includes(".") ? originalFilename.split(".").pop() : "pdf"
       const filename = `${applicantName.replace(/[^a-zA-Z0-9]/g, "_")}_resume.${fileExtension}`
+
       const link = document.createElement("a")
       link.href = downloadUrl
       link.download = filename
@@ -399,7 +381,7 @@ export default function AdminApplicationsPage() {
     } catch (error) {
       console.error("Download failed:", error)
       toast.error("Failed to download resume. Opening in new tab instead.", { id: toastId })
-      window.open(fullResumeUrl, "_blank")
+      window.open(url, "_blank")
     }
   }
 
@@ -448,6 +430,7 @@ export default function AdminApplicationsPage() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <Navbar />
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -458,6 +441,7 @@ export default function AdminApplicationsPage() {
           <Badge className="text-lg px-3 py-1 bg-blue-600 text-white">{filteredApplications.length} Applications</Badge>
         </div>
       </div>
+
       {/* Bulk Actions Bar */}
       {selectedApplications.size > 0 && (
         <Card className="border-blue-200 bg-blue-50">
@@ -476,12 +460,15 @@ export default function AdminApplicationsPage() {
                       selectedApplications.size > 0
                         ? applications.filter((app: any) => selectedApplications.has(app.id))
                         : filteredApplications
+
                     const { headers, csvData, roleSpecificQuestionsArray } = generateCSVData(appsToExport)
+
                     const csvContent = [headers, ...csvData]
                       .map((row) =>
                         row.map((field: string | number) => `"${String(field).replace(/"/g, '""')}"`).join(","),
                       )
                       .join("\n")
+
                     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
                     const link = document.createElement("a")
                     const url = URL.createObjectURL(blob)
@@ -496,6 +483,7 @@ export default function AdminApplicationsPage() {
                     document.body.appendChild(link)
                     link.click()
                     document.body.removeChild(link)
+
                     toast.success(
                       selectedApplications.size > 0
                         ? `${selectedApplications.size} selected applications exported to CSV successfully!`
@@ -535,6 +523,7 @@ export default function AdminApplicationsPage() {
           </CardContent>
         </Card>
       )}
+
       {/* Search and Filters */}
       <Card>
         <CardContent className="p-4">
@@ -589,6 +578,7 @@ export default function AdminApplicationsPage() {
                 Clear
               </Button>
             </div>
+
             {/* Advanced Filters */}
             {showAdvancedFilters && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
@@ -635,6 +625,7 @@ export default function AdminApplicationsPage() {
           </div>
         </CardContent>
       </Card>
+
       {/* Applications Table */}
       <Card>
         <CardHeader>
@@ -824,6 +815,7 @@ export default function AdminApplicationsPage() {
           </Table>
         </CardContent>
       </Card>
+
       {/* Pagination */}
       <div className="flex justify-center items-center gap-4">
         <Button
