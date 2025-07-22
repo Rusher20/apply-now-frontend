@@ -1,33 +1,48 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useQuery } from "@apollo/client"
-import { GET_POSITION } from "@/graphql/query/get-position"
-import { GET_JOB_APPLICATIONS } from "@/graphql/query/getApplication"
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card"
-import { Button } from "../../../components/ui/button"
-import { Users, Briefcase } from "lucide-react"
-import Link from "next/link"
-import LogoutButton from "../../../components/LogoutButton"
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@apollo/client";
+import { GET_POSITION } from "@/graphql/query/get-position";
+import { GET_JOB_APPLICATIONS } from "@/graphql/query/getApplication";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+import { Users, Briefcase } from "lucide-react";
+import Link from "next/link";
+import LogoutButton from "../../../components/LogoutButton";
 
 export default function AdminDashboard() {
-  const router = useRouter()
-  const { data: appsData, loading: appsLoading } = useQuery(GET_JOB_APPLICATIONS)
-  const { data: positionsData, loading: positionsLoading } = useQuery(GET_POSITION)
+  const router = useRouter();
+  const { data: appsData, loading: appsLoading } =
+    useQuery(GET_JOB_APPLICATIONS);
+  const { data: positionsData, loading: positionsLoading } =
+    useQuery(GET_POSITION);
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    if (!token) router.push("/login")
-  }, [router])
+    const token = localStorage.getItem("token");
+    if (!token) router.push("/login");
+  }, [router]);
 
-  const jobApplications = appsData?.jobApplications || []
-  const allPositions = positionsData?.positions || []
-  const activePositions = allPositions.filter((pos: any) => pos.isActive)
-  const pendingReviewCount = jobApplications.filter((app: any) => app.status === "pending").length
-  const reviewedCount = jobApplications.filter((app: any) => app.status === "reviewed").length
-  const hiredCount = jobApplications.filter((app: any) => app.status === "hired").length
-  const interviewedCount = jobApplications.filter((app: any) => app.status === "interviewed").length
+  const jobApplications = appsData?.jobApplications || [];
+  const allPositions = positionsData?.positions || [];
+  const activePositions = allPositions.filter((pos: any) => pos.isActive);
+  const pendingReviewCount = jobApplications.filter(
+    (app: any) => app.status === "pending"
+  ).length;
+  const reviewedCount = jobApplications.filter(
+    (app: any) => app.status === "reviewed"
+  ).length;
+  const hiredCount = jobApplications.filter(
+    (app: any) => app.status === "hired"
+  ).length;
+  const interviewedCount = jobApplications.filter(
+    (app: any) => app.status === "interviewed"
+  ).length;
 
   // Create recent activity from actual data
   const recentActivity = [
@@ -45,7 +60,7 @@ export default function AdminDashboard() {
       time: new Date(pos.createdAt).toLocaleDateString(),
       type: "position",
     })),
-  ].slice(0, 4)
+  ].slice(0, 4);
 
   if (appsLoading || positionsLoading) {
     return (
@@ -55,7 +70,7 @@ export default function AdminDashboard() {
           <span className="text-lg text-gray-600">Loading dashboard...</span>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -75,7 +90,9 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <h1 className="text-4xl font-bold">Welcome back!</h1>
-              <p className="text-blue-100 text-lg">Manage your recruitment process efficiently</p>
+              <p className="text-blue-100 text-lg">
+                Manage your recruitment process efficiently
+              </p>
             </div>
             <div className="hidden md:block">
               <LogoutButton />
@@ -92,8 +109,12 @@ export default function AdminDashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Applications</p>
-                  <p className="text-3xl font-bold text-gray-900">{jobApplications.length}</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    Total Applications
+                  </p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {jobApplications.length}
+                  </p>
                   <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
                     <Users className="h-3 w-3" />
                     All submissions
@@ -110,8 +131,12 @@ export default function AdminDashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Pending Review</p>
-                  <p className="text-3xl font-bold text-gray-900">{pendingReviewCount}</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    Pending Review
+                  </p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {pendingReviewCount}
+                  </p>
                   <p className="text-xs text-orange-600 flex items-center gap-1 mt-1">
                     <Users className="h-3 w-3" />
                     Needs attention
@@ -128,8 +153,12 @@ export default function AdminDashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Active Positions</p>
-                  <p className="text-3xl font-bold text-gray-900">{activePositions.length}</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    Active Positions
+                  </p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {activePositions.length}
+                  </p>
                   <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
                     <Briefcase className="h-3 w-3" />
                     Currently hiring
@@ -147,7 +176,9 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Hired</p>
-                  <p className="text-3xl font-bold text-gray-900">{hiredCount}</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {hiredCount}
+                  </p>
                   <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
                     <Users className="h-3 w-3" />
                     Great progress!
@@ -163,81 +194,89 @@ export default function AdminDashboard() {
 
         {/* Main Action Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-50 to-blue-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 group">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-3 bg-blue-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                  <Users className="h-7 w-7 text-white" />
-                </div>
-                <div>
-                  <span className="text-gray-900">Job Applications</span>
-                  <div className="ml-2 inline-block px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-full">
-                    {pendingReviewCount} pending
+          <Link href="/admin/applications" className="block">
+            <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-50 to-blue-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 group">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-3 text-xl">
+                  <div className="p-3 bg-blue-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                    <Users className="h-7 w-7 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-gray-900">Job Applications</span>
+                    <div className="ml-2 inline-block px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-full">
+                      {pendingReviewCount} pending
+                    </div>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-700 leading-relaxed">
+                  Review and manage job applications from candidates. Track
+                  application status, schedule interviews, and make hiring
+                  decisions.
+                </p>
+                <div className="flex items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>{reviewedCount} Reviewed</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                    <span>{pendingReviewCount} Pending</span>
                   </div>
                 </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-gray-700 leading-relaxed">
-                Review and manage job applications from candidates. Track application status, schedule interviews, and
-                make hiring decisions.
-              </p>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>{reviewedCount} Reviewed</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                  <span>{pendingReviewCount} Pending</span>
-                </div>
-              </div>
-              <Link href="/admin/applications" className="block">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 group">
-                  <span>View Applications</span>
-                  <Users className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+                <Link href="/admin/applications" className="block">
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 group">
+                    <span>View Applications</span>
+                    <Users className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-green-50 to-green-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 group">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-3 bg-green-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                  <Briefcase className="h-7 w-7 text-white" />
-                </div>
-                <div>
-                  <span className="text-gray-900">Position Management</span>
-                  <div className="ml-2 inline-block px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-full">
-                    {activePositions.length} active
+          <Link href="/admin/positions" className="block">
+            <Card className="border-0 shadow-xl bg-gradient-to-br from-green-50 to-green-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 group">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-3 text-xl">
+                  <div className="p-3 bg-green-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                    <Briefcase className="h-7 w-7 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-gray-900">Position Management</span>
+                    <div className="ml-2 inline-block px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-full">
+                      {activePositions.length} active
+                    </div>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-700 leading-relaxed">
+                  Create and manage job positions with custom questions. Define
+                  role requirements, set up application forms, and control
+                  position visibility.
+                </p>
+                <div className="flex items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>{activePositions.length} Active</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                    <span>
+                      {allPositions.length - activePositions.length} Inactive
+                    </span>
                   </div>
                 </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-gray-700 leading-relaxed">
-                Create and manage job positions with custom questions. Define role requirements, set up application
-                forms, and control position visibility.
-              </p>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>{activePositions.length} Active</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                  <span>{allPositions.length - activePositions.length} Inactive</span>
-                </div>
-              </div>
-              <Link href="/admin/positions" className="block">
-                <Button className="w-full bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 group">
-                  <span>Manage Positions</span>
-                  <Briefcase className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+                <Link href="/admin/positions" className="block">
+                  <Button className="w-full bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 group">
+                    <span>Manage Positions</span>
+                    <Briefcase className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {/* Recent Activity */}
@@ -261,8 +300,8 @@ export default function AdminDashboard() {
                         activity.type === "application"
                           ? "bg-blue-100"
                           : activity.type === "position"
-                            ? "bg-green-100"
-                            : "bg-orange-100"
+                          ? "bg-green-100"
+                          : "bg-orange-100"
                       }`}
                     >
                       {activity.type === "application" ? (
@@ -272,8 +311,12 @@ export default function AdminDashboard() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{activity.action}</p>
-                      <p className="text-sm text-gray-600">{activity.position}</p>
+                      <p className="font-medium text-gray-900">
+                        {activity.action}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {activity.position}
+                      </p>
                     </div>
                     <div className="text-sm text-gray-500">{activity.time}</div>
                   </div>
@@ -287,63 +330,10 @@ export default function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Application Status Breakdown */}
-        <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Users className="h-5 w-5 text-gray-700" />
-              Application Status Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors duration-200">
-                <div className="p-2 rounded-full bg-orange-100">
-                  <Users className="h-4 w-4 text-orange-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">Pending</p>
-                  <p className="text-2xl font-bold text-orange-600">{pendingReviewCount}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors duration-200">
-                <div className="p-2 rounded-full bg-blue-100">
-                  <Users className="h-4 w-4 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">Reviewed</p>
-                  <p className="text-2xl font-bold text-blue-600">{reviewedCount}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors duration-200">
-                <div className="p-2 rounded-full bg-purple-100">
-                  <Users className="h-4 w-4 text-purple-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">Interviewed</p>
-                  <p className="text-2xl font-bold text-purple-600">{interviewedCount}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-green-50 hover:bg-green-100 transition-colors duration-200">
-                <div className="p-2 rounded-full bg-green-100">
-                  <Users className="h-4 w-4 text-green-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">Hired</p>
-                  <p className="text-2xl font-bold text-green-600">{hiredCount}</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
         <div className="md:hidden flex justify-center">
           <LogoutButton />
         </div>
       </div>
     </div>
-  )
+  );
 }
