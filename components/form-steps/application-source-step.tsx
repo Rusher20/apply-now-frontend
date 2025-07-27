@@ -26,7 +26,9 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
 
       <div className="space-y-6">
         <div className="space-y-2">
-          <Label>How did you find this job posting? <span className="text-red-500"> *</span></Label>
+          <Label>
+            How did you find this job posting? <span className="text-red-500"> *</span>
+          </Label>
           <Select
             value={formData.applicationSource}
             onValueChange={(value) => handleInputChange("applicationSource", value)}
@@ -41,6 +43,7 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
               <SelectItem value="company-website">Company Website</SelectItem>
               <SelectItem value="referral">Employee Referral</SelectItem>
               <SelectItem value="facebook">Facebook</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -58,6 +61,21 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
           </div>
         )}
 
+        {formData.applicationSource === "other" && (
+          <div className="space-y-2">
+            <Label htmlFor="other">
+              Please specify <span className="text-red-500"> *</span>
+            </Label>
+            <Input
+              id="other"
+              value={formData.applicationSource || ""}
+              onChange={(e) => handleInputChange("applicationSource", e.target.value)}
+              placeholder="Please specify how you found this job posting"
+              required
+            />
+          </div>
+        )}
+
         <div className="border-t pt-6">
           <div className="flex items-center gap-3 mb-4">
             <Wifi className="h-5 w-5 text-blue-600" />
@@ -66,7 +84,9 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
 
           <div className="space-y-4">
             <div className="space-y-3">
-              <Label>Do you have a stable home internet connection? <span className="text-red-500"> *</span></Label>
+              <Label>
+                Do you have a stable home internet connection? <span className="text-red-500"> *</span>
+              </Label>
               <RadioGroup
                 value={formData.hasStableInternet}
                 onValueChange={(value: string) => handleInputChange("hasStableInternet", value)}
@@ -85,7 +105,9 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
 
             {formData.hasStableInternet === "yes" && (
               <div className="space-y-2">
-                <Label htmlFor="internetProvider">Internet Service Provider <span className="text-red-500"> *</span></Label>
+                <Label htmlFor="internetProvider">
+                  Internet Service Provider <span className="text-red-500"> *</span>
+                </Label>
                 <Select
                   value={formData.internetProvider}
                   onValueChange={(value) => handleInputChange("internetProvider", value)}
@@ -94,14 +116,27 @@ export function ApplicationSourceStep({ formData, updateFormData }: ApplicationS
                     <SelectValue placeholder="Select your internet provider" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pldt">PLDT</SelectItem>
-                    <SelectItem value="globe">Globe</SelectItem>
+                    <SelectItem value="pldt">PLDT </SelectItem>
+                    <SelectItem value="globe">Globe </SelectItem>
                     <SelectItem value="smart">Smart</SelectItem>
                     <SelectItem value="sky">Sky</SelectItem>
-                    <SelectItem value="converge">Converge</SelectItem>
-                    <SelectItem value="dito">Dito</SelectItem>
+                    <SelectItem value="converge">Converge ICT</SelectItem>
+                    <SelectItem value="other-isp">Other</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {formData.internetProvider === "other-isp" && (
+              <div className="space-y-2">
+                <Label htmlFor="otherProvider">Please specify your internet provider </Label>
+                <Input
+                  id="otherProvider"
+                  value={formData.internetProvider|| ""}
+                  onChange={(e) => handleInputChange("internetProvider", e.target.value)}
+                  placeholder="Enter your internet service provider"
+                  required
+                />
               </div>
             )}
           </div>

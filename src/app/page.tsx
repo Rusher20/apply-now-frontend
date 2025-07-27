@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
 import { Button } from "../../components/ui/button"
 import { Progress } from "../../components/ui/progress"
-import { Badge } from "../../components/ui/badge"
 import { ConfidentialityStep } from "../../components/form-steps/confidentiality-step"
 import { BasicInfoStep } from "../../components/form-steps/basic-info-step"
 import { ApplicationSourceStep } from "../../components/form-steps/application-source-step"
@@ -13,6 +12,7 @@ import { PositionStep } from "../../components/form-steps/position-step"
 import { RoleSpecificStep } from "../../components/form-steps/role-specific-step"
 import { ReviewStep } from "../../components/form-steps/review-step"
 import { ChevronLeft, ChevronRight, Save, Trash2 } from "lucide-react"
+import { toast } from "react-hot-toast"
 
 export interface FormData {
   confidentialityAgreed: boolean
@@ -164,10 +164,33 @@ export default function JobApplicationForm() {
 
   const handleSubmit = async () => {
     if (!formData.resume) {
-      alert("Resume is required")
+      toast.error("Resume is required")
       return
-    }
+    }// ✅ Convert age (and other number strings if needed) to actual numbers
 
+const phoneRegex = /^(09\d{9}|\+639\d{9})$/;
+
+if (!phoneRegex.test(formData.contactNumber)) {
+  toast.error("Please enter a valid mobile number (e.g., 09123456789 or +639123456789).");
+  return;
+}
+
+
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!formData.email || !emailRegex.test(formData.email)) {
+    toast.error("Please enter a valid email address.");
+    return;
+  }
+
+  const cleanedInput = {
+    ...formData,
+    age: formData.age ? parseInt(formData.age, 10) : null,
+  };
+  if (cleanedInput.age === null || cleanedInput.age < 18 || cleanedInput.age > 65) {
+    toast.error("Age does not meet the minimum requirement or exceeds the allowed limit.");
+    return;
+  }
     setLoading(true)
     try {
       const operations = JSON.stringify({
@@ -179,7 +202,7 @@ export default function JobApplicationForm() {
         variables: {
           input: {
             name: formData.name,
-            age: formData.age,
+            age: cleanedInput.age,
             gender: formData.gender,
             email: formData.email,
             contactNumber: formData.contactNumber,
@@ -215,8 +238,7 @@ export default function JobApplicationForm() {
 
       const result = await response.json()
       if (result.errors) {
-        console.error("GraphQL Error:", result.errors)
-        alert("Submission failed.")
+        toast.error("Submission failed.")
       } else {
         // Clear saved data on successful submission
         localStorage.removeItem(STORAGE_KEY)
@@ -225,7 +247,7 @@ export default function JobApplicationForm() {
       }
     } catch (error) {
       console.error("Submission Error:", error)
-      alert("An error occurred while submitting.")
+      toast.error("An error occurred while submitting.")
     } finally {
       setLoading(false)
     }
@@ -261,7 +283,7 @@ export default function JobApplicationForm() {
       case 0:
         return formData.confidentialityAgreed
       case 1:
-        return formData.name && formData.email && formData.contactNumber && formData.address
+        return formData.name && formData.email && formData.contactNumber && formData.address && formData.gender
       case 2:
         return formData.applicationSource && formData.hasStableInternet
       case 3:
@@ -290,9 +312,17 @@ export default function JobApplicationForm() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="w-full">
+        <img
+          src="/FORMS BANNER.png"
+          alt="ProgressPro Services Inc. Banner"
+          className="w-full h-32 md:h-40 lg:h-48 object-cover opacity-90 rounded-lg"
+        />
+      </div>
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
-          <img src="/PPSI.png" alt="PPSI Logo" className="h-20 mx-auto mb-4" />
+           <div className="w-full mb-8">
+      </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Job Application Form</h1>
           <p className="text-gray-600">
             Step {currentStep + 1} of {STEPS.length}: {STEPS[currentStep]}
